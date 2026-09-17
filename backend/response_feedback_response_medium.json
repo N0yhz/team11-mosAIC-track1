@@ -1,68 +1,609 @@
 {
   "response_file": "response_medium.md",
   "vendor_name": "Clarion Data Systems",
-  "compliance_grade": "C+",
-  "bid_recommendation": "Shortlist with Clarifications",
-  "executive_summary": "Clarion Data Systems submitted a proposal that conceptually covers all seven medium-priority requirements outlined in NordFrame Logistics' evaluation criteria. However, the proposal suffers from extreme brevity and lacks specific architectural, operational, and financial details—particularly regarding concrete SLA commitments, exact alert configuration mechanisms, and a fixed pricing model. Because all evaluated criteria are set to a medium priority (Score 3), the proposal is not rejected outright for failing must-have deal-breakers, but it requires rigorous clarification before final award.",
+  "compliance_grade": "F",
+  "bid_recommendation": "Reject",
+  "executive_summary": "The vendor proposal fails to meet critical requirements for AuroraCold Distribution AG. It proposes coverage for only 6 warehouses instead of 8, integrates with PostgreSQL instead of the mandatory Microsoft SQL Server, and violates the hard-gate no-migration constraint. Pricing and timelines are vague.",
   "strengths": [
-    "Explicitly confirms direct integration with the existing PostgreSQL database without requiring a database migration.",
-    "Acknowledges all core functional scope elements including real-time dashboards, alerts, RBAC, and a phased onboarding plan.",
-    "Pricing range (€70,000 to €110,000) fits comfortably within the customer's stated budget of €80,000–€120,000."
+    "Includes role-based access control.",
+    "Proposes a phased onboarding and migration plan."
   ],
   "weaknesses_and_gaps": [
-    "Extremely vague timeline ('Begin with discovery, follow with pilot, and complete rollout in due time') failing to commit to the 3-month pilot and 6-month full rollout milestones.",
-    "Fails to provide firm pricing, offering only a conditional range dependent on a future discovery phase.",
-    "Omits concrete details regarding SLA response times, support maintenance terms, and documentation of technical assumptions or risks."
+    "Covers only 6 warehouses instead of the required 8.",
+    "Integrates with PostgreSQL instead of Microsoft SQL Server.",
+    "Violates the hard gate against database migration.",
+    "Timeline lacks specific dates for the 10-week pilot and 7-month rollout.",
+    "Pricing is provided as a vague range rather than a firm fixed price."
   ],
   "scorecard": [
     {
       "criterion_id": "REQ-01",
-      "requirement_title": "Web-Based Real-Time Inventory Dashboard",
-      "priority_level": "3 - Medium Priority",
-      "status": "Partially Compliant",
-      "evaluation_notes": "Mentioned conceptually in the technical solution, but lacks architectural specifics regarding tech stack, refresh rates, or web accessibility."
-    },
-    {
-      "criterion_id": "REQ-02",
-      "requirement_title": "PostgreSQL Database Integration",
-      "priority_level": "3 - Medium Priority",
-      "status": "Compliant",
-      "evaluation_notes": "Explicitly confirms direct integration with existing PostgreSQL database without performing a database migration."
+      "requirement_title": "Centralized Web-Based Monitoring Dashboard",
+      "priority_level": "5 - Must have",
+      "status": "partial",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-01.1",
+        "REQ-01.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-01.1",
+          "status": "partial",
+          "evidence_quote": "Real-time inventory dashboard across 6 regional warehouses."
+        },
+        {
+          "check_id": "REQ-01.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Provide a web-based dashboard displaying near-real-time inventory and temperature status for all eight distribution centres."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Real-time inventory dashboard across 6 regional warehouses."
+      },
+      "suggested_clarifications": [
+        "Can the dashboard be extended to cover all eight distribution centres?",
+        "Does the dashboard include near-real-time temperature status?"
+      ],
+      "evaluation_notes": "Proposal covers only 6 warehouses instead of 8 and omits temperature monitoring."
     },
     {
       "criterion_id": "REQ-03",
-      "requirement_title": "Role-Based Access Control (RBAC)",
-      "priority_level": "3 - Medium Priority",
-      "status": "Partially Compliant",
-      "evaluation_notes": "Listed as included, but lacks detail on how site-specific vs. HQ global permissions will be structured and enforced."
-    },
-    {
-      "criterion_id": "REQ-04",
-      "requirement_title": "Automated Low-Stock Threshold Alerts",
-      "priority_level": "3 - Medium Priority",
-      "status": "Partially Compliant",
-      "evaluation_notes": "Acknowledges configurable low-stock alerts, but does not specify delivery channels (e.g., email, SMS, in-app webhooks)."
+      "requirement_title": "Temperature Excursion Alerts and Notifications",
+      "priority_level": "5 - Must have",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-03.1",
+        "REQ-03.2",
+        "REQ-03.3"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-03.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-03.2",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-03.3",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Generate alerts when a threshold is exceeded and notify the responsible site manager by email and in-app notification."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Configurable low-stock alerts."
+      },
+      "suggested_clarifications": [
+        "Does the system support temperature excursion alerts?",
+        "Are email and in-app notifications supported for site managers?"
+      ],
+      "evaluation_notes": "Proposal mentions low-stock alerts but entirely lacks temperature excursion notifications."
     },
     {
       "criterion_id": "REQ-05",
-      "requirement_title": "Data Migration and Multi-Site Onboarding Plan",
-      "priority_level": "3 - Medium Priority",
-      "status": "Partially Compliant",
-      "evaluation_notes": "Mentions a detailed phased migration and onboarding plan, but provides zero scheduling or operational detail."
+      "requirement_title": "Role-Based Access Control",
+      "priority_level": "5 - Must have",
+      "status": "addressed",
+      "source_hard_gate": false,
+      "matched_checks": [
+        "REQ-05.1",
+        "REQ-05.2"
+      ],
+      "missing_checks": [],
+      "check_results": [
+        {
+          "check_id": "REQ-05.1",
+          "status": "addressed",
+          "evidence_quote": "Role-based access control."
+        },
+        {
+          "check_id": "REQ-05.2",
+          "status": "addressed",
+          "evidence_quote": "Role-based access control."
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Support role-based access so that site managers can view only their assigned distribution centre, while head-office quality staff can view all eight sites."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Role-based access control."
+      },
+      "suggested_clarifications": [
+        "Confirm support for site-specific scoping."
+      ],
+      "evaluation_notes": "Vendor states they support role-based access control."
     },
     {
       "criterion_id": "REQ-06",
-      "requirement_title": "Post-Go-Live Support and Service Level Agreements (SLAs)",
-      "priority_level": "3 - Medium Priority",
-      "status": "Non-Compliant",
-      "evaluation_notes": "Completely absent from the submitted proposal; no mention of support terms, helpdesk hours, or response time SLAs."
+      "requirement_title": "Database and Sensor Integration",
+      "priority_level": "5 - Must have",
+      "status": "contradicted",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-06.1",
+        "REQ-06.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-06.1",
+          "status": "contradicted",
+          "evidence_quote": "Direct integration with existing PostgreSQL database."
+        },
+        {
+          "check_id": "REQ-06.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The portal must integrate with AuroraCold's existing Microsoft SQL Server database and existing temperature-sensor data feeds."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Direct integration with existing PostgreSQL database."
+      },
+      "suggested_clarifications": [
+        "Can the solution integrate with Microsoft SQL Server instead of PostgreSQL?"
+      ],
+      "evaluation_notes": "Proposal contradicts requirement by targeting PostgreSQL instead of Microsoft SQL Server."
     },
     {
       "criterion_id": "REQ-07",
-      "requirement_title": "Documentation of Assumptions, Limitations, and Risks",
-      "priority_level": "3 - Medium Priority",
-      "status": "Non-Compliant",
-      "evaluation_notes": "No technical assumptions, platform limitations, or operational risk assessments were documented in the response."
+      "requirement_title": "No-Migration Constraint on Existing Database",
+      "priority_level": "5 - Must have",
+      "status": "contradicted",
+      "source_hard_gate": true,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-07.1",
+        "REQ-07.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-07.1",
+          "status": "contradicted",
+          "evidence_quote": "Direct integration with existing PostgreSQL database."
+        },
+        {
+          "check_id": "REQ-07.2",
+          "status": "contradicted",
+          "evidence_quote": "Detailed phased migration and onboarding plan."
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The existing SQL Server database must remain the system of record. Migration to a replacement database is not permitted."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Direct integration with existing PostgreSQL database."
+      },
+      "suggested_clarifications": [],
+      "evaluation_notes": "Fails hard gate due to PostgreSQL integration and migration plans."
+    },
+    {
+      "criterion_id": "REQ-11",
+      "requirement_title": "Pilot Deadline Constraint",
+      "priority_level": "5 - Must have",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-11.1"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-11.1",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "A working pilot must be delivered at one German distribution centre within ten weeks of project start."
+      },
+      "proposal_evidence": {
+        "section": "Timeline",
+        "quote": "Begin with discovery, follow with pilot, and complete rollout in due time."
+      },
+      "suggested_clarifications": [
+        "Can a working pilot be delivered within 10 weeks?"
+      ],
+      "evaluation_notes": "Timeline is vague and fails to commit to the 10-week pilot deadline."
+    },
+    {
+      "criterion_id": "REQ-12",
+      "requirement_title": "Full Rollout Deadline Constraint",
+      "priority_level": "5 - Must have",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-12.1"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-12.1",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Full rollout to all eight sites must be completed within seven months of project start."
+      },
+      "proposal_evidence": {
+        "section": "Timeline",
+        "quote": "Begin with discovery, follow with pilot, and complete rollout in due time."
+      },
+      "suggested_clarifications": [
+        "Can full rollout be completed within 7 months?"
+      ],
+      "evaluation_notes": "Timeline lacks specific commitments regarding the 7-month rollout."
+    },
+    {
+      "criterion_id": "REQ-14",
+      "requirement_title": "First-Year Support Inclusion",
+      "priority_level": "5 - Must have",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-14.1",
+        "REQ-14.2",
+        "REQ-14.3"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-14.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-14.2",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-14.3",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The proposal must include twelve months of post-go-live support."
+      },
+      "proposal_evidence": {
+        "section": "Pricing & SLAs",
+        "quote": "Typical packages €70,000 to €110,000. Firm quote after discovery."
+      },
+      "suggested_clarifications": [
+        "Does the package include 12 months of post-go-live support with defined SLAs?"
+      ],
+      "evaluation_notes": "No support terms or SLA details provided in the proposal."
+    },
+    {
+      "criterion_id": "REQ-15",
+      "requirement_title": "Budget Range Constraint",
+      "priority_level": "5 - Must have",
+      "status": "addressed",
+      "source_hard_gate": false,
+      "matched_checks": [
+        "REQ-15.1"
+      ],
+      "missing_checks": [],
+      "check_results": [
+        {
+          "check_id": "REQ-15.1",
+          "status": "addressed",
+          "evidence_quote": "Typical packages €70,000 to €110,000."
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The total project budget is EUR 140,000–EUR 190,000"
+      },
+      "proposal_evidence": {
+        "section": "Pricing & SLAs",
+        "quote": "Typical packages €70,000 to €110,000."
+      },
+      "suggested_clarifications": [],
+      "evaluation_notes": "Proposed cost range falls within the maximum budget ceiling."
+    },
+    {
+      "criterion_id": "REQ-02",
+      "requirement_title": "Configurable Temperature Thresholds",
+      "priority_level": "4 - High priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-02.1"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-02.1",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Allow configurable temperature thresholds for different product categories."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Configurable low-stock alerts."
+      },
+      "suggested_clarifications": [
+        "Does the system allow configurable temperature thresholds?"
+      ],
+      "evaluation_notes": "Only stock thresholds are mentioned; temperature thresholds are absent."
+    },
+    {
+      "criterion_id": "REQ-04",
+      "requirement_title": "Incident View and Tracking",
+      "priority_level": "4 - High priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-04.1",
+        "REQ-04.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-04.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-04.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "Provide an incident view showing the affected site, product category, measured temperature, threshold, timestamp, and acknowledgement status."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Real-time inventory dashboard across 6 regional warehouses."
+      },
+      "suggested_clarifications": [
+        "Is an incident view with timestamps and acknowledgement status supported?"
+      ],
+      "evaluation_notes": "Proposal does not mention an incident view or tracking capabilities."
+    },
+    {
+      "criterion_id": "REQ-08",
+      "requirement_title": "WMS Preservation During Pilot Phase",
+      "priority_level": "4 - High priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-08.1"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-08.1",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The solution must not require changes to the existing warehouse-management system during the pilot phase."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Detailed phased migration and onboarding plan."
+      },
+      "suggested_clarifications": [
+        "Will the WMS remain unchanged during the pilot phase?"
+      ],
+      "evaluation_notes": "Proposal mentions a migration plan but does not guarantee WMS preservation during the pilot."
+    },
+    {
+      "criterion_id": "REQ-09",
+      "requirement_title": "Data Transport Encryption and Auth Description",
+      "priority_level": "4 - High priority",
+      "status": "partial",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-09.1"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-09.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-09.2",
+          "status": "addressed",
+          "evidence_quote": "Role-based access control."
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "All data connections must use encrypted transport. The vendor must describe its authentication and authorization approach."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Role-based access control."
+      },
+      "suggested_clarifications": [
+        "Do all data connections use encrypted transport?"
+      ],
+      "evaluation_notes": "Mentions access control but omits confirmation of data transport encryption."
+    },
+    {
+      "criterion_id": "REQ-10",
+      "requirement_title": "Phased Onboarding and Rollout Plan",
+      "priority_level": "4 - High priority",
+      "status": "addressed",
+      "source_hard_gate": false,
+      "matched_checks": [
+        "REQ-10.1",
+        "REQ-10.2"
+      ],
+      "missing_checks": [],
+      "check_results": [
+        {
+          "check_id": "REQ-10.1",
+          "status": "addressed",
+          "evidence_quote": "Detailed phased migration and onboarding plan."
+        },
+        {
+          "check_id": "REQ-10.2",
+          "status": "addressed",
+          "evidence_quote": "Detailed phased migration and onboarding plan."
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The vendor must provide a phased onboarding and rollout plan covering all eight distribution centres."
+      },
+      "proposal_evidence": {
+        "section": "Technical Solution",
+        "quote": "Detailed phased migration and onboarding plan."
+      },
+      "suggested_clarifications": [],
+      "evaluation_notes": "Vendor includes a phased onboarding and migration plan."
+    },
+    {
+      "criterion_id": "REQ-16",
+      "requirement_title": "Detailed Pricing Breakdown",
+      "priority_level": "4 - High priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-16.1",
+        "REQ-16.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-16.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-16.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The proposal must provide a cost breakdown covering solution implementation, integration work, site onboarding and training, licensing/subscription charges, first-year support."
+      },
+      "proposal_evidence": {
+        "section": "Pricing & SLAs",
+        "quote": "Typical packages €70,000 to €110,000. Firm quote after discovery."
+      },
+      "suggested_clarifications": [
+        "Provide a detailed cost breakdown covering implementation, integration, and support."
+      ],
+      "evaluation_notes": "Only a high-level package range is provided without detailed component breakdowns."
+    },
+    {
+      "criterion_id": "REQ-13",
+      "requirement_title": "Dependencies, Risks, Assumptions, and Limitations Disclosure",
+      "priority_level": "3 - Medium priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-13.1",
+        "REQ-13.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-13.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-13.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The proposal must identify client dependencies, vendor dependencies, major delivery risks, assumptions, and known limitations."
+      },
+      "proposal_evidence": {
+        "section": "Pricing & SLAs",
+        "quote": "Firm quote after discovery."
+      },
+      "suggested_clarifications": [
+        "Please disclose client dependencies, delivery risks, assumptions, and limitations."
+      ],
+      "evaluation_notes": "Proposal does not disclose risks, dependencies, or limitations."
+    },
+    {
+      "criterion_id": "REQ-17",
+      "requirement_title": "Proposal Content and Regulatory Experience",
+      "priority_level": "3 - Medium priority",
+      "status": "missing",
+      "source_hard_gate": false,
+      "matched_checks": [],
+      "missing_checks": [
+        "REQ-17.1",
+        "REQ-17.2"
+      ],
+      "check_results": [
+        {
+          "check_id": "REQ-17.1",
+          "status": "missing",
+          "evidence_quote": ""
+        },
+        {
+          "check_id": "REQ-17.2",
+          "status": "missing",
+          "evidence_quote": ""
+        }
+      ],
+      "rfp_evidence": {
+        "section": "CRITERIA",
+        "quote": "The vendor response should include: An executive summary... A description of the proposed solution... Relevant experience delivering systems for logistics, warehousing, pharmaceuticals."
+      },
+      "proposal_evidence": {
+        "section": "Proposal: Warehouse Visibility Platform",
+        "quote": "Submitted by: Clarion Data Systems"
+      },
+      "suggested_clarifications": [
+        "Provide an executive summary, complete architecture description, and regulated industry experience."
+      ],
+      "evaluation_notes": "Proposal lacks standard executive summary, architecture details, and industry experience."
     }
   ]
 }

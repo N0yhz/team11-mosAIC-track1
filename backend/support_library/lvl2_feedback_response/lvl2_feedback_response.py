@@ -56,13 +56,12 @@ You have been tasked with evaluating a vendor's proposal/response against a form
 3. Priority 5 is not automatically a hard gate. Only a criterion with `hard_gate: true` is a disqualifying gatekeeper.
 4. In your Task A Scorecard, reflect the assigned priority level. Echo the criteria' hard-gate value only as `source_hard_gate`; do not create or override hard-gate policy.
 5. Treat Level 2 grade and recommendation as descriptive context only; the canonical weighted decision is calculated later by Level 3.
-6. In your Task B corrected proposal, provide suggested wording and fixes only. Do not invent vendor capabilities, guarantees, SLAs, prices, or timelines. Every proposed revision requires vendor confirmation.
-7. Do not reduce compliance because of details that the RFP does not explicitly require. If additional technical detail would be useful but is not required, put it under `suggested_clarifications` rather than using it as a reason for `partial`, `missing`, or `contradicted`.
-8. For every scorecard row, include grounded evidence from both documents when available. If the proposal contains no relevant statement for a requirement, use status `missing` and an empty proposal evidence quote. Use `unverifiable` only when the proposal makes a relevant claim but provides insufficient information to verify it. Never invent evidence.
-9. A criterion may contain multiple explicit checks or sub-requirements. A criterion is `addressed` only when every mandatory check is explicitly covered. Use `partial` when at least one mandatory check is covered and another is missing, vague, or deferred. Use `missing` when none is mentioned. Do not infer omitted checks from a generic feature name.
-10. STATUS DEFINITIONS: `addressed` means all explicit mandatory checks are clearly satisfied; `partial` means at least one is satisfied but another explicit check is missing, vague, or deferred; `missing` means no relevant proposal statement exists; `contradicted` means the proposal explicitly conflicts with the RFP; `unverifiable` means the proposal makes a relevant claim but the wording is too ambiguous or unsupported to verify.
-11. A proposal promising delivery earlier than an "within N months" deadline does not contradict the deadline. Evaluate whether the required milestone, scope, and feasibility are sufficiently described.
-12. Do not infer compliance with a prohibition from silence. For constraints such as "no database migration", require an explicit proposal statement confirming no migration or replacement. Existing PostgreSQL integration alone is `partial` or `unverifiable` for the no-migration check.
+6. Do not reduce compliance because of details that the RFP does not explicitly require. Put useful but non-required details under `suggested_clarifications`.
+7. If the proposal contains no relevant statement, use `missing`; use `unverifiable` only for a relevant but unsupported claim. Never invent evidence.
+8. A compound criterion is `addressed` only when every mandatory check is covered; use `partial` when some checks are covered and others are missing or vague; use `missing` when none is mentioned.
+9. An earlier delivery date does not contradict an "within N months" deadline; assess milestone, scope, and feasibility.
+10. Do not infer compliance with a prohibition from silence. For "no database migration", require an explicit confirmation; PostgreSQL integration alone is `partial` or `unverifiable`.
+11. Keep the response concise: maximum 3 strengths, 5 weaknesses, 2 clarifications per criterion, and 60 words per evaluation note. Do not generate a corrected proposal or draft revisions in this call.
 
 ---
 
@@ -75,10 +74,74 @@ You have been tasked with evaluating a vendor's proposal/response against a form
 4. Provide a structured criteria-by-criteria scorecard with: criterion_id, requirement_title, priority_level, status, source_hard_gate, rfp_evidence, proposal_evidence, matched_checks, missing_checks, check_results, suggested_clarifications, and evaluation_notes.
 5. Provide an overall Compliance Grade (A, B, C, D, or F) and bid recommendation (Accept, Shortlist with Clarifications, or Reject).
 
-#### Task B (Correction & Actionable Improvements):
-1. Provide a concrete list of **Actionable Recommendations** for improving the proposal to win the bid, specifically addressing all missing or partially compliant criteria.
-2. Highlight the **Key Improvements Made** compared to the original proposal.
-3. Provide suggested revisions for all relevant criteria, giving top priority to Score 5 and Score 4 requirements. Do not present suggestions as approved vendor commitments.
+
+### OUTPUT FORMAT:
+You MUST return your response strictly as a single valid, well-formed JSON object matching this schema:
+{{
+    "feedback": {{
+        "response_file": "{response_file_name}",
+        "vendor_name": "string - Name of the vendor who submitted the proposal",
+        "compliance_grade": "string - e.g. C+, B-, or D",
+        "bid_recommendation": "string - e.g. Shortlist with Clarifications / Reject / Accept",
+        "executive_summary": "string - Overall evaluation summary of the proposal reflecting user criteria priorities",
+        "strengths": [
+            "string - Specific strength 1",
+            "string - Specific strength 2"
+        ],
+        "weaknesses_and_gaps": [
+            "string - Specific weakness/gap 1",
+            "string - Specific weakness/gap 2"
+        ],
+        "scorecard": [
+            {{
+                "criterion_id": "REQ-01",
+                "requirement_title": "string",
+                "priority_level": "string",
+                "status": "addressed | partial | missing | contradicted | unverifiable",
+                "source_hard_gate": false,
+                                "matched_checks": ["Explicit check covered by the proposal"],
+                                "missing_checks": ["Explicit check not covered or not verifiable"],
+                                "check_results": [
+                                        {{"check_id": "REQ-01.1", "status": "addressed", "evidence_quote": "verbatim proposal quote"}}
+                                ],
+                                "rfp_evidence": {{
+                                        "section": "string",
+                                        "quote": "verbatim RFP quote or empty string"
+                                }},
+                                "proposal_evidence": {{
+                                        "section": "string",
+                                        "quote": "verbatim proposal quote or empty string"
+                                }},
+                                "suggested_clarifications": ["string"],
+                "evaluation_notes": "string"
+            }}
+        ]
+    }},
+    "correction": {{
+        "response_file": "{response_file_name}",
+        "vendor_name": "string",
+        "actionable_recommendations": [
+            "string - Recommendation 1",
+            "string - Recommendation 2"
+        ],
+        "key_improvements_made": [
+            "string - Improvement 1",
+            "string - Improvement 2"
+        ],
+                "corrected_proposal": {{
+                        "title": "Draft Proposal Revisions",
+                        "requirements_revisions": [
+                                {{
+                                        "criterion_id": "REQ-01",
+                                        "deficiency_resolved": "string",
+                                        "suggested_revision": "string - Draft wording requiring vendor confirmation",
+                                        "requires_vendor_confirmation": true,
+                                        "confirmation_fields": ["string"]
+                                }}
+                        ]
+                }}
+    }}
+}}
 
 ---
 
@@ -153,6 +216,60 @@ You MUST return your response strictly as a single valid, well-formed JSON objec
 Do NOT output any markdown ticks outside the JSON or commentary. Only return valid JSON.
 """
 
+# Level 2 deliberately returns evaluation only. Draft revisions are a separate operation.
+EVALUATION_PROMPT_TEMPLATE = """
+You are a procurement evaluator. Compare the vendor proposal with the customer criteria.
+
+CRITERIA:
+{criteria_json}
+
+PROPOSAL:
+{response_markdown}
+
+Rules:
+- Requirement text, source quotes, constraints, and priority are immutable.
+- Return status only from: addressed, partial, missing, contradicted, unverifiable.
+- A compound criterion is addressed only when every mandatory check is covered.
+- Use partial when some checks are covered and others are missing or vague.
+- Use missing when the proposal has no relevant statement.
+- Use unverifiable when it makes a relevant but unsupported claim.
+- Do not infer compliance with prohibitions from silence. "No database migration" requires explicit confirmation.
+- An earlier delivery date does not contradict an "within N months" deadline.
+- Priority 5 is not automatically a hard gate. Echo the input value as source_hard_gate only.
+- Do not judge non-required technical details as compliance failures.
+- Keep strengths <= 3, weaknesses <= 5, clarifications <= 2 per criterion, and evaluation_notes <= 60 words.
+- Do not generate corrections, draft revisions, or full proposal text in this call.
+
+Return ONLY this JSON object:
+{{
+    "feedback": {{
+        "response_file": "{response_file_name}",
+        "vendor_name": "string",
+        "compliance_grade": "string",
+        "bid_recommendation": "string",
+        "executive_summary": "string under 120 words",
+        "strengths": ["string"],
+        "weaknesses_and_gaps": ["string"],
+        "scorecard": [
+            {{
+                "criterion_id": "REQ-01",
+                "requirement_title": "string",
+                "priority_level": "string",
+                "status": "addressed | partial | missing | contradicted | unverifiable",
+                "source_hard_gate": false,
+                "matched_checks": ["string"],
+                "missing_checks": ["string"],
+                "check_results": [{{"check_id": "REQ-01.1", "status": "addressed", "evidence_quote": "string"}}],
+                "rfp_evidence": {{"section": "string", "quote": "string"}},
+                "proposal_evidence": {{"section": "string", "quote": "string"}},
+                "suggested_clarifications": ["string"],
+                "evaluation_notes": "string under 60 words"
+            }}
+        ]
+    }}
+}}
+"""
+
 
 def _get_api_key(explicit_key: Optional[str] = None) -> str:
     """Validate and retrieve Gemini API key from parameter or environment."""
@@ -215,6 +332,15 @@ def _call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None
                     ),
                 )
                 if response.text:
+                    finish_reason = None
+                    if getattr(response, "candidates", None):
+                        finish_reason = getattr(response.candidates[0], "finish_reason", None)
+                    print(f"[Gemini] model={m} finish_reason={finish_reason} output_chars={len(response.text)}")
+                    if finish_reason and "MAX_TOKENS" in str(finish_reason).upper():
+                        raise ValueError(
+                            "Gemini output was truncated at the token limit. "
+                            "The evaluation response must be shortened or retried with a larger limit."
+                        )
                     return response.text
             except Exception as exc:
                 last_error = exc
@@ -241,6 +367,7 @@ def _call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None
             },
         )
         response = model.generate_content(prompt)
+        print(f"[Gemini] legacy output_chars={len(response.text or '')}")
         return response.text
 
     except ImportError:
