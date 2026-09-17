@@ -1,0 +1,100 @@
+# =====================================================================
+# Python Standard Ignore Patterns
+# =====================================================================
+
+# Byte-compiled / optimized / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# C extensions and distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables & credentials
+.env
+.env.*
+*.env
+!.env.example
+
+# =====================================================================
+# Testing, Code Quality & Tools
+# =====================================================================
+
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Linters, Formatters & Type Checkers (Mypy, Ruff, Flake8)
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# =====================================================================
+# Project Outputs & Generated Files
+# =====================================================================
+requirements_report.md
+requirements_report.json
+*.log
+outputs/
+output/
+reports/
+
+# =====================================================================
+# IDEs & Code Editors
+# =====================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# =====================================================================
+# OS & File System Artifacts (macOS, Windows, WSL)
+# =====================================================================
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Windows Alternate Data Streams (common in WSL)
+*:Zone.Identifier
+*Zone.Identifier*
