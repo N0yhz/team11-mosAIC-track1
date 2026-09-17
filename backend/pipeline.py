@@ -25,12 +25,12 @@ from typing import Any, Dict, Optional, Union
 # Imports with package fallback
 # ---------------------------------------------------------------------
 try:
-    from support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+    from support_library import criteria_extractor, lvl2_feedback_response
 except ImportError:
     try:
-        from .support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+        from .support_library import criteria_extractor, lvl2_feedback_response
     except ImportError:
-        from backend.support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+        from backend.support_library import criteria_extractor, lvl2_feedback_response
 
 
 # =====================================================================
@@ -125,7 +125,7 @@ def evaluate_response_stage(
     model_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Stage 2: Evaluate a vendor response against criteria (which may be customized by the user).
+    Stage 2: Evaluate a vendor response against criteria while treating requirement text as immutable.
 
     :param criteria_input: Criteria data dict OR path to criteria JSON file.
     :param response_file: Path to vendor proposal/response document (.md).
@@ -157,19 +157,6 @@ def evaluate_response_stage(
         actual_criteria_file = str(criteria_input)
         with open(actual_criteria_file, "r", encoding="utf-8") as f:
             criteria_data = json.load(f)
-
-    # Check if any user-modified criteria need description adaptation with LITE_MODEL
-    try:
-        criteria_items = criteria_data.get("criteria", []) if isinstance(criteria_data, dict) else []
-        needs_adaptation = any(c.get("is_user_modified") and not c.get("is_description_adapted") for c in criteria_items)
-        if needs_adaptation:
-            print("[Stage 2 Pre-step] Auto-adapting requirement descriptions with LITE_MODEL to match updated marks...")
-            criteria_data = adapt_criteria_descriptions(criteria_data, api_key=api_key)
-            with open(actual_criteria_file, "w", encoding="utf-8") as f_upd:
-                json.dump(criteria_data, f_upd, indent=2, ensure_ascii=False)
-            print("[Stage 2 Pre-step] Requirement descriptions adapted successfully.")
-    except Exception as adapt_err:
-        print(f"[Stage 2 Pre-step Warning] Description adaptation failed: {adapt_err}")
 
     try:
         print(f"\n[Stage 2] Evaluating '{processed_response}' against criteria in '{actual_criteria_file}'...")
@@ -257,7 +244,6 @@ __all__ = [
     "extract_criteria_stage",
     "evaluate_response_stage",
     "lvl2_pipeline",
-    "adapt_criteria_descriptions",
     "_convert_to_markdown_placeholder",
 ]
 

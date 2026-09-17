@@ -3,7 +3,7 @@ FastAPI Backend for Level 2 RFP Evaluation Pipeline
 ----------------------------------------------------
 Provides REST API endpoints for:
 1. Stage 1: Extract criteria from RFP (`POST /api/extract-criteria`).
-2. Stage 2: Evaluate vendor response with user-adapted criteria (`POST /api/feedback`).
+2. Stage 2: Evaluate vendor response against immutable requirements (`POST /api/feedback`).
 3. Unified: Full end-to-end evaluation (`POST /api/evaluate`).
 4. Sample Demo: Instant sample criteria and evaluations (`GET /api/sample`, `GET /api/sample/criteria`).
 """
@@ -17,7 +17,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,7 +29,6 @@ try:
         extract_criteria_stage,
         evaluate_response_stage,
         lvl2_pipeline,
-        adapt_criteria_descriptions,
     )
 except ImportError:
     try:
@@ -36,15 +36,20 @@ except ImportError:
             extract_criteria_stage,
             evaluate_response_stage,
             lvl2_pipeline,
-            adapt_criteria_descriptions,
         )
     except ImportError:
         from backend.pipeline import (
             extract_criteria_stage,
             evaluate_response_stage,
             lvl2_pipeline,
-            adapt_criteria_descriptions,
         )
+
+try:
+    from level3_service import finalize_level3
+    from models import Level3Request
+except ImportError:
+    from .level3_service import finalize_level3
+    from .models import Level3Request
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -58,8 +63,8 @@ app = FastAPI(
 # ---------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8001").split(",") if origin.strip()],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -139,49 +144,6 @@ async def get_sample_result() -> Dict[str, Any]:
     )
 
 
-# =====================================================================
-
-# =====================================================================
-# ADAPT CRITERIA DESCRIPTIONS (LITE MODEL)
-# =====================================================================
-@app.post("/api/criteria/adapt-descriptions")
-@app.post("/api/criteria/rephrase")
-async def adapt_criteria_endpoint(
-    payload: Dict[str, Any] = Body(...),
-) -> Dict[str, Any]:
-    """
-    Regenerates requirement descriptions and rationales with LITE_MODEL
-    to reflect modified priority marks (1 to 5) before response evaluation.
-    Updates the criteria report in-place and returns it to the client.
-    """
-    criteria_report = payload.get("criteria_report") or payload
-    if not isinstance(criteria_report, dict) or "criteria" not in criteria_report:
-        if isinstance(criteria_report, list):
-            criteria_report = {"criteria": criteria_report, "total_criteria": len(criteria_report)}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid criteria payload. Must contain 'criteria' list."
-            )
-
-    only_modified = payload.get("only_modified", True)
-
-    try:
-        updated_report = adapt_criteria_descriptions(
-            criteria_data=criteria_report,
-            only_modified=only_modified,
-        )
-        return JSONResponse(content={
-            "status": "success",
-            "criteria_report": updated_report,
-            "message": "Criteria descriptions successfully adapted to priority marks."
-        })
-    except Exception as err:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to adapt criteria descriptions: {str(err)}"
-        )
-
 # STAGE 1: Extract Criteria from RFP
 # =====================================================================
 @app.post("/api/extract-criteria")
@@ -201,7 +163,7 @@ async def extract_criteria_endpoint(
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_crit_")
     try:
-        rfp_dest = Path(temp_dir) / rfp_file.filename
+        rfp_dest = Path(temp_dir) / Path(rfp_file.filename).name
         with open(rfp_dest, "wb") as f_out:
             shutil.copyfileobj(rfp_file.file, f_out)
 
@@ -214,7 +176,8 @@ async def extract_criteria_endpoint(
         criteria_output_path = Path(temp_dir) / "extracted_criteria.json"
 
         try:
-            criteria_report = extract_criteria_stage(
+            criteria_report = await run_in_threadpool(
+                extract_criteria_stage,
                 rfp_file=str(rfp_dest),
                 output_file=str(criteria_output_path),
             )
@@ -273,7 +236,7 @@ async def evaluate_feedback_endpoint(
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_eval_")
     try:
-        response_dest = Path(temp_dir) / response_file.filename
+        response_dest = Path(temp_dir) / Path(response_file.filename).name
         with open(response_dest, "wb") as f_out:
             shutil.copyfileobj(response_file.file, f_out)
 
@@ -286,7 +249,8 @@ async def evaluate_feedback_endpoint(
         output_json_path = Path(temp_dir) / "evaluation_result.json"
 
         try:
-            result = evaluate_response_stage(
+            result = await run_in_threadpool(
+                evaluate_response_stage,
                 criteria_input=parsed_criteria,
                 response_file=str(response_dest),
                 output_file=str(output_json_path),
@@ -323,8 +287,8 @@ async def evaluate_proposal_unified(
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_unified_")
     try:
-        rfp_dest = Path(temp_dir) / rfp_file.filename
-        response_dest = Path(temp_dir) / response_file.filename
+        rfp_dest = Path(temp_dir) / Path(rfp_file.filename).name
+        response_dest = Path(temp_dir) / Path(response_file.filename).name
 
         with open(rfp_dest, "wb") as f_out:
             shutil.copyfileobj(rfp_file.file, f_out)
@@ -332,12 +296,15 @@ async def evaluate_proposal_unified(
             shutil.copyfileobj(response_file.file, f_out)
 
         output_json_path = Path(temp_dir) / "pipeline_result.json"
+        criteria_path = Path(temp_dir) / "criteria.json"
 
         try:
-            result = lvl2_pipeline(
+            result = await run_in_threadpool(
+                lvl2_pipeline,
                 rfp_file=str(rfp_dest),
                 response_file=str(response_dest),
                 output_file=str(output_json_path),
+                criteria_file=str(criteria_path),
             )
         except Exception as pipeline_err:
             raise HTTPException(
@@ -349,6 +316,22 @@ async def evaluate_proposal_unified(
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.post("/api/level3/finalize")
+async def finalize_level3_endpoint(payload: Level3Request) -> Dict[str, Any]:
+    """Finalize score and recommendation without another Gemini call."""
+    try:
+        return await run_in_threadpool(
+            finalize_level3,
+            payload.level2_evaluation,
+            payload.changes,
+        )
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Level 3 finalization failed: {err}",
+        )
 
 
 # ---------------------------------------------------------------------

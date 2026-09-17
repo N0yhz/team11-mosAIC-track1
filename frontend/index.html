@@ -168,13 +168,13 @@
       {
         mark: 5,
         title: "Must-Have",
-        subtext: "Mandatory deal-breaker requirement",
+        subtext: "Highest priority requirement",
         badgeColor: "bg-rose-500/20 text-rose-300 border-rose-500/30",
         activeColor: "bg-rose-500",
         ringColor: "ring-rose-400",
         trackColor: "from-amber-500 via-orange-500 to-rose-600",
         pillActive: "bg-rose-600 text-white border-rose-400",
-        tag: "Deal-Breaker",
+        tag: "Must-Have",
         icon: "🚨"
       }
     ];
@@ -191,6 +191,8 @@
       const [evaluatingResponse, setEvaluatingResponse] = useState(false);
       const [progressStep, setProgressStep] = useState(0);
       const [evaluationResult, setEvaluationResult] = useState(null);
+      const [level3Result, setLevel3Result] = useState(null);
+      const [finalizeMessage, setFinalizeMessage] = useState(null);
 
       // UI View State
       const [activeTab, setActiveTab] = useState("criteria_slide");
@@ -200,8 +202,6 @@
       const [autoPlay, setAutoPlay] = useState(false);
       const [error, setError] = useState(null);
       const [copied, setCopied] = useState(false);
-      const [adaptingDescriptions, setAdaptingDescriptions] = useState(false);
-      const [adaptationMessage, setAdaptationMessage] = useState(null);
 
       const rfpInputRef = useRef(null);
       const responseInputRef = useRef(null);
@@ -275,8 +275,22 @@
 
           const data = await res.json();
           const report = data.criteria_report || {};
-          setCriteriaReport(report);
-          setOriginalCriteria(JSON.parse(JSON.stringify(report.criteria || [])));
+          const preparedCriteria = (report.criteria || []).map((criterion) => {
+            const initialPriority = criterion.priority_score ?? criterion.score ?? 3;
+            return {
+              ...criterion,
+              initial_priority: initialPriority,
+              confirmed_priority: initialPriority,
+              is_user_modified: false,
+              is_user_confirmed: false,
+            };
+          });
+          const preparedReport = { ...report, criteria: preparedCriteria };
+          setCriteriaReport(preparedReport);
+          setOriginalCriteria(JSON.parse(JSON.stringify(preparedCriteria)));
+          setEvaluationResult(null);
+          setLevel3Result(null);
+          setFinalizeMessage(null);
           setCurrentSlideIndex(0);
           setActiveTab("criteria_slide");
         } catch (err) {
@@ -294,8 +308,21 @@
           const res = await fetch(`${getApiBase()}/api/sample/criteria`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          setCriteriaReport(data);
-          setOriginalCriteria(JSON.parse(JSON.stringify(data.criteria || [])));
+          const preparedCriteria = (data.criteria || []).map((criterion) => {
+            const initialPriority = criterion.priority_score ?? criterion.score ?? 3;
+            return {
+              ...criterion,
+              initial_priority: initialPriority,
+              confirmed_priority: initialPriority,
+              is_user_modified: false,
+              is_user_confirmed: false,
+            };
+          });
+          setCriteriaReport({ ...data, criteria: preparedCriteria });
+          setOriginalCriteria(JSON.parse(JSON.stringify(preparedCriteria)));
+          setEvaluationResult(null);
+          setLevel3Result(null);
+          setFinalizeMessage(null);
           setCurrentSlideIndex(0);
           setActiveTab("criteria_slide");
         } catch (err) {
@@ -306,7 +333,7 @@
       };
 
       const handleLoadSampleRfpFile = () => {
-        const sampleRfp = `# Request for Proposal • Warehouse Inventory Dashboard\n**Client:** NordFrame Logistics GmbH\n**Industry:** Logistics / Warehousing\n\n## Requirements\n1. Web-based dashboard showing real-time inventory levels across all 6 warehouses.\n2. Automated low-stock alerts sent to warehouse managers.\n3. Integration with existing PostgreSQL database — no migration.\n4. Role-based access (managers see own site, HQ sees all).\n5. Data migration / onboarding plan across 6 sites.\n6. Support & maintenance terms (SLAs).\n7. Documentation of assumptions, limitations, or risks.\n\n## Budget\n€80,000–€120,000 total.\n## Timeline\n3-month pilot, 6-month full rollout.`;
+        const sampleRfp = `# Request for Proposal • Warehouse Inventory Dashboard\n**Client:** NordFrame Logistics GmbH\n**Industry:** Logistics / Warehousing\n\n## Requirements\n1. Web-based dashboard showing real-time inventory levels across all 6 warehouses.\n2. Automated low-stock alerts sent to warehouse managers when items fall below a configurable threshold.\n3. Integration with the existing PostgreSQL inventory database.\n4. No migration to a new database or replacement of the existing PostgreSQL database.\n5. Role-based access: warehouse managers see only their own site; HQ staff see all sites.\n6. Phased onboarding and rollout across all 6 sites with minimal disruption.\n7. Support and maintenance terms after go-live, including response times and SLAs.\n8. Clear documentation of assumptions, limitations, and risks.\n\n## Budget\n€80,000–€120,000 total, including first year of support.\n\n## Timeline\nWorking pilot at one warehouse within 3 months; full rollout to all 6 sites within 6 months.`;
         const blob = new Blob([sampleRfp], { type: "text/markdown" });
         setRfpFile(new File([blob], "rfp_nordframe.md", { type: "text/markdown" }));
       };
@@ -318,64 +345,118 @@
       const handleUpdatePriority = (criterionId, newScore) => {
         if (!criteriaReport?.criteria) return;
 
-        const updatedCriteria = criteriaReport.criteria.map((c) => {
-          if (c.id === criterionId) {
+        const updatedCriteria = criteriaReport.criteria.map((criterion) => {
+          if (criterion.id === criterionId) {
             const markDef = PRIORITY_MARKS[newScore - 1];
+            const confirmedPriority = criterion.confirmed_priority
+              ?? criterion.priority_score
+              ?? criterion.score
+              ?? 3;
+            const hasChanged = Number(newScore) !== Number(confirmedPriority);
             return {
-              ...c,
+              ...criterion,
               score: newScore,
               priority_score: newScore,
               priority_level: `${newScore} - ${markDef.title}`,
-              is_user_modified: true,
-              is_description_adapted: false,
+              is_user_modified: hasChanged,
+              is_user_confirmed: !hasChanged,
             };
           }
-          return c;
+          return criterion;
         });
 
         setCriteriaReport({
           ...criteriaReport,
           criteria: updatedCriteria,
         });
+        setFinalizeMessage(null);
       };
 
-      const handleResetCriteria = () => {
-        if (!originalCriteria || !criteriaReport) return;
+      const handleUpdateHardGate = (criterionId, confirmed) => {
+        if (!criteriaReport?.criteria) return;
         setCriteriaReport({
           ...criteriaReport,
-          criteria: JSON.parse(JSON.stringify(originalCriteria)),
+          criteria: criteriaReport.criteria.map((criterion) => criterion.id === criterionId
+            ? {
+                ...criterion,
+                hard_gate: confirmed,
+                hard_gate_confirmed_by_user: true,
+                is_user_modified: true,
+                is_user_confirmed: false,
+              }
+            : criterion),
         });
       };
 
-      // -----------------------------------------------------------------
-      // ADAPT DESCRIPTIONS: Rephrase with LITE_MODEL
-      // -----------------------------------------------------------------
-      const handleAdaptDescriptionsDirectly = async () => {
-        if (!criteriaReport?.criteria) return;
+      const handleFinalizePriorities = async () => {
+        if (!evaluationResult || !criteriaReport?.criteria) return;
         setError(null);
-        setAdaptingDescriptions(true);
-        setAdaptationMessage("⚡ Regenerating requirement descriptions with Lite Model (gemini-3.5-flash-lite) to fit priority marks...");
+        setEvaluatingResponse(true);
         try {
-          const res = await fetch(`${getApiBase()}/api/criteria/adapt-descriptions`, {
+          const changes = criteriaReport.criteria.map((criterion) => ({
+              requirement_id: criterion.id,
+              priority: criterion.score || criterion.priority_score || 3,
+              hard_gate: criterion.hard_gate ?? null,
+              decision: criterion.is_user_confirmed ? "confirmed" : "adjusted",
+            }));
+          const res = await fetch(`${getApiBase()}/api/level3/finalize`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ criteria_report: criteriaReport, only_modified: true }),
+            body: JSON.stringify({ level2_evaluation: evaluationResult, changes }),
           });
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             throw new Error(errData.detail || `HTTP ${res.status}`);
           }
-          const data = await res.json();
-          if (data.criteria_report) {
-            setCriteriaReport(data.criteria_report);
-            setAdaptationMessage("✅ Requirement descriptions updated on frontend!");
-            setTimeout(() => setAdaptationMessage(null), 3000);
-          }
+          const level3Result = await res.json();
+          setLevel3Result(level3Result);
+          setEvaluationResult((current) => ({
+            ...current,
+            level3_result: level3Result,
+          }));
+          setCriteriaReport((current) => current ? ({
+            ...current,
+            criteria: (current.criteria || []).map((criterion) => ({
+              ...criterion,
+              score: criterion.score ?? criterion.priority_score ?? 3,
+              priority_score: criterion.score ?? criterion.priority_score ?? 3,
+              is_user_modified: false,
+              is_user_confirmed: true,
+              confirmed_priority: criterion.score ?? criterion.priority_score ?? 3,
+            })),
+          }) : current);
+          setFinalizeMessage(`Final review updated: ${level3Result.score}/100 - ${level3Result.readiness}`);
         } catch (err) {
-          setError("Failed to adapt descriptions: " + err.message);
+          setError("Failed to finalize priorities: " + err.message);
         } finally {
-          setAdaptingDescriptions(false);
+          setEvaluatingResponse(false);
         }
+      };
+
+      const handleResetCriteria = () => {
+        if (!originalCriteria || !criteriaReport) return;
+        const resetCriteria = JSON.parse(JSON.stringify(originalCriteria)).map((criterion) => {
+          const originalPriority = criterion.priority_score ?? criterion.score ?? 3;
+          const currentCriterion = criteriaReport.criteria.find((item) => item.id === criterion.id);
+          const confirmedPriority = currentCriterion?.confirmed_priority
+            ?? currentCriterion?.priority_score
+            ?? currentCriterion?.score
+            ?? 3;
+          const hasChanged = Number(originalPriority) !== Number(confirmedPriority);
+          return {
+            ...criterion,
+            score: originalPriority,
+            priority_score: originalPriority,
+            confirmed_priority: confirmedPriority,
+            is_user_modified: hasChanged,
+            is_user_confirmed: !hasChanged,
+          };
+        });
+        setCriteriaReport({
+          ...criteriaReport,
+          criteria: resetCriteria,
+        });
+        setFinalizeMessage(null);
       };
 
       // -----------------------------------------------------------------
@@ -397,44 +478,8 @@
         setError(null);
         setEvaluatingResponse(true);
 
-        // STEP 1: Check if any criteria marks were modified and need description adaptation
-        let activeCriteriaReport = criteriaReport;
-        const needsAdaptation = (criteriaReport.criteria || []).some(
-          (c) => c.is_user_modified && !c.is_description_adapted
-        );
-
-        if (needsAdaptation) {
-          try {
-            setAdaptingDescriptions(true);
-            setAdaptationMessage("⚡ Step 1/2: Adapting requirement descriptions with Lite Model (gemini-3.5-flash-lite) to fit your custom marks...");
-            setProgressStep(0);
-
-            const adaptRes = await fetch(`${getApiBase()}/api/criteria/adapt-descriptions`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ criteria_report: criteriaReport, only_modified: true }),
-            });
-
-            if (adaptRes.ok) {
-              const adaptData = await adaptRes.json();
-              if (adaptData.criteria_report) {
-                activeCriteriaReport = adaptData.criteria_report;
-                // UPDATE THE FRONTEND STATE FIRST!
-                setCriteriaReport(activeCriteriaReport);
-                setAdaptationMessage("✅ Requirement descriptions updated on frontend! Now running proposal feedback with Strong Model...");
-                // Brief pause so user visibly observes the description text update on the UI
-                await new Promise((resolve) => setTimeout(resolve, 900));
-              }
-            }
-          } catch (adaptErr) {
-            console.warn("Description adaptation warning:", adaptErr);
-          } finally {
-            setAdaptingDescriptions(false);
-          }
-        }
-
-        // STEP 2: Start the feedback process with the updated descriptions
-        setAdaptationMessage("🔍 Step 2/2: Evaluating proposal with Strong Model (gemini-3.8-flash)...");
+        // Priority edits are metadata only; Level 2 evaluates the original requirement text.
+        const activeCriteriaReport = criteriaReport;
         setProgressStep(1);
 
         const interval = setInterval(() => {
@@ -457,14 +502,42 @@
           }
 
           const data = await res.json();
+          const scorecard = data?.response_feedback?.scorecard;
+          if (!Array.isArray(scorecard) || scorecard.length === 0) {
+            const rawPreview = data?.response_feedback?.raw_output?.slice?.(0, 300) || "";
+            throw new Error(
+              "Level 2 returned no scorecard. The AI response may be invalid or truncated. " + rawPreview
+            );
+          }
+
+          // Level 2 is independently useful; do not hide it behind Level 3 finalization.
+          setLevel3Result(null);
           setEvaluationResult(data);
+          setFinalizeMessage(null);
           setActiveTab("feedback");
+
+          const initialFinalizeRes = await fetch(`${getApiBase()}/api/level3/finalize`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ level2_evaluation: data, changes: [] }),
+          });
+          if (!initialFinalizeRes.ok) {
+            const level3Error = await initialFinalizeRes.json().catch(() => ({}));
+            throw new Error(
+              level3Error.detail || `Level 3 finalization failed: HTTP ${initialFinalizeRes.status}`
+            );
+          }
+          const initialLevel3 = await initialFinalizeRes.json();
+          setLevel3Result(initialLevel3);
+          setEvaluationResult((current) => ({
+            ...current,
+            level3_result: initialLevel3,
+          }));
         } catch (err) {
           setError(err.message || "Failed to evaluate proposal response.");
         } finally {
           clearInterval(interval);
           setEvaluatingResponse(false);
-          setAdaptationMessage(null);
         }
       };
 
@@ -498,6 +571,8 @@
           setCriteriaReport(data.criteria_report);
           setOriginalCriteria(JSON.parse(JSON.stringify(data.criteria_report?.criteria || [])));
           setEvaluationResult(data);
+          setLevel3Result(data.level3_result || null);
+          setFinalizeMessage(null);
           setActiveTab("criteria_slide");
         } catch (err) {
           setError("Failed to load demo: " + err.message);
@@ -521,12 +596,18 @@
       const currentCriterion = criteriaList[currentSlideIndex] || null;
       const currentScore = currentCriterion ? (currentCriterion.score || currentCriterion.priority_score || 3) : 3;
 
-      const baseScorecard = evaluationResult?.response_feedback?.scorecard || [];
+      const baseScorecard = level3Result?.scorecard
+        || evaluationResult?.level3_result?.scorecard
+        || evaluationResult?.response_feedback?.scorecard
+        || [];
 
       // Calculate dynamic synchronized scorecard reflecting user's current customized priority marks
       const syncedScorecard = baseScorecard.map((item) => {
         const critMatch = criteriaList.find((c) => (c.id || "").trim().toUpperCase() === (item.criterion_id || "").trim().toUpperCase());
-        const currentCritScore = critMatch ? (critMatch.score || critMatch.priority_score || 3) : 3;
+        const hasPendingChange = critMatch?.is_user_modified && !critMatch?.is_user_confirmed;
+        const currentCritScore = hasPendingChange
+          ? (critMatch.score || critMatch.priority_score || 3)
+          : (item.priority_score || (critMatch ? (critMatch.score || critMatch.priority_score || 3) : 3));
         const markDef = PRIORITY_MARKS[currentCritScore - 1] || PRIORITY_MARKS[2];
         const isModified = critMatch?.is_user_modified || false;
 
@@ -538,77 +619,7 @@
         };
       });
 
-      // Interactive Weighted Score Calculation
-      const computeWeightedEvaluation = () => {
-        if (!syncedScorecard.length) return null;
-
-        let totalWeight = 0;
-        let earnedPoints = 0;
-        let dealBreakerFailed = null;
-
-        syncedScorecard.forEach((row) => {
-          const weight = row.priority_score || 3;
-          totalWeight += weight;
-
-          const status = (row.status || "").toLowerCase();
-          let factor = 0;
-          if (status.includes("compliant") && !status.includes("partially") && !status.includes("non")) {
-            factor = 1.0;
-          } else if (status.includes("partially")) {
-            factor = 0.5;
-          } else {
-            factor = 0.0;
-          }
-
-          earnedPoints += weight * factor;
-
-          // Check for deal-breaker failure on score 5 (Must-Have)
-          if (weight === 5 && factor < 1.0 && !dealBreakerFailed) {
-            dealBreakerFailed = {
-              id: row.criterion_id,
-              title: row.requirement_title,
-              status: row.status,
-              notes: row.evaluation_notes,
-            };
-          }
-        });
-
-        const calculatedScore = totalWeight > 0 ? Math.round((earnedPoints / totalWeight) * 100) : 0;
-        
-        let calculatedGrade = "B-";
-        let recommendation = "Shortlist with Clarifications";
-
-        if (dealBreakerFailed) {
-          calculatedGrade = calculatedScore < 50 ? "F" : "D";
-          recommendation = "Reject or Require Critical Clarifications (Must-Have Gap)";
-        } else {
-          if (calculatedScore >= 90) {
-            calculatedGrade = "A";
-            recommendation = "Accept / Top Candidate";
-          } else if (calculatedScore >= 80) {
-            calculatedGrade = "B+";
-            recommendation = "Shortlist (Strong Candidate)";
-          } else if (calculatedScore >= 70) {
-            calculatedGrade = "B-";
-            recommendation = "Shortlist with Minor Clarifications";
-          } else if (calculatedScore >= 60) {
-            calculatedGrade = "C";
-            recommendation = "Marginal Candidate";
-          } else {
-            calculatedGrade = "D";
-            recommendation = "Reject";
-          }
-        }
-
-        return {
-          score: calculatedScore,
-          grade: calculatedGrade,
-          recommendation,
-          dealBreakerFailed,
-        };
-      };
-
-      const weightedResult = computeWeightedEvaluation();
+      const weightedResult = level3Result || evaluationResult?.level3_result || null;
 
       const getScorecardMatch = (reqId) => {
         if (!reqId || !syncedScorecard.length) return null;
@@ -620,7 +631,7 @@
       const countHigh = criteriaList.filter((c) => (c.score || c.priority_score) === 4).length;
       const countMedium = criteriaList.filter((c) => (c.score || c.priority_score) === 3).length;
       const countLowNice = criteriaList.filter((c) => (c.score || c.priority_score) <= 2).length;
-      const modifiedCount = criteriaList.filter((c) => c.is_user_modified).length;
+      const modifiedCount = criteriaList.filter((c) => c.is_user_modified && !c.is_user_confirmed).length;
 
       const filteredCriteria = criteriaList.filter((c) => {
         if (scoreFilter === "all") return true;
@@ -639,7 +650,7 @@
       const getComplianceBadge = (statusStr) => {
         if (!statusStr) return null;
         const s = statusStr.toLowerCase();
-        if (s.includes("compliant") && !s.includes("partially") && !s.includes("non")) {
+        if (["addressed", "compliant", "fully addressed", "fully compliant"].includes(s)) {
           return (
             <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
@@ -647,7 +658,7 @@
             </span>
           );
         }
-        if (s.includes("partially")) {
+        if (s === "partial" || s.includes("partially")) {
           return (
             <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -902,16 +913,9 @@
             <div class="glass-panel rounded-2xl p-8 mb-8 text-center animate-fade-in">
               <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-400 rounded-full animate-spin mx-auto mb-4"></div>
               <h3 class="text-base font-bold text-white mb-2">Executing Level 2 AI Pipeline</h3>
-              {adaptationMessage ? (
-                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 text-xs font-mono mb-2">
-                  <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-                  <span>{adaptationMessage}</span>
-                </div>
-              ) : (
-                <p class="text-sm text-indigo-300 font-mono transition-all max-w-md mx-auto">
-                  {progressSteps[progressStep]}
-                </p>
-              )}
+              <p class="text-sm text-indigo-300 font-mono transition-all max-w-md mx-auto">
+                {progressSteps[progressStep]}
+              </p>
             </div>
           )}
 
@@ -948,7 +952,7 @@
                 {weightedResult ? (
                   <div class="flex items-center gap-3">
                     <div class="px-4 py-2 rounded-xl bg-dark-850 border border-gray-700 text-center">
-                      <span class="text-3xs uppercase text-gray-400 block font-mono">Weighted Score</span>
+                        <span class="text-3xs uppercase text-gray-400 block font-mono" title="Measures requirement compliance using your confirmed priorities; it is not AI confidence.">Priority-Weighted Compliance</span>
                       <span class="text-xl font-black text-white">{weightedResult.score}/100</span>
                       {modifiedCount > 0 && (
                         <span class="text-3xs text-amber-400 font-mono block">Custom Weighted</span>
@@ -981,40 +985,73 @@
                 )}
               </div>
 
-              {/* Deal-Breaker Failure Alert (If User elevated a failed requirement to Must-Have 5) */}
-              {weightedResult?.dealBreakerFailed && (
+              {/* Explicit hard-gate failure alert */}
+              {weightedResult?.hard_gate_failed && weightedResult.deal_breakers?.[0] && (
                 <div class="mb-6 p-4 rounded-xl bg-rose-950/40 border-2 border-rose-500/60 text-rose-200 text-sm flex items-start gap-3 shadow-lg shadow-rose-950/50">
                   <div class="p-2 rounded-lg bg-rose-500/20 text-rose-400 font-bold shrink-0 mt-0.5">
-                    🚨 MUST-HAVE DEAL-BREAKER
+                    🚨 EXPLICIT HARD-GATE FAILURE
                   </div>
                   <div>
                     <h4 class="font-bold text-white text-sm">
-                      Proposal Fails Mandatory Must-Have Requirement [{weightedResult.dealBreakerFailed.id} - {weightedResult.dealBreakerFailed.title}]
+                      Proposal Fails Explicit Hard Gate [{weightedResult.deal_breakers[0].criterion_id} - {weightedResult.deal_breakers[0].requirement_title}]
                     </h4>
                     <p class="text-xs text-rose-200 mt-1 leading-relaxed">
-                      This requirement was designated with <strong>Mark 5 (Must-Have)</strong>, but the proposal is <strong>{weightedResult.dealBreakerFailed.status}</strong>! Recommendation: <strong>{weightedResult.recommendation}</strong>.
+                      This requirement is explicitly marked as a hard gate, but the proposal is <strong>{weightedResult.deal_breakers[0].status}</strong>. Recommendation: <strong>{weightedResult.recommendation}</strong>.
                     </p>
                   </div>
                 </div>
               )}
 
               {/* Sticky Re-evaluation Notification Bar if modified after evaluation */}
-              {evaluationResult && modifiedCount > 0 && (
+              {evaluationResult && (
                 <div class="mb-6 p-3.5 rounded-xl bg-brand-500/15 border border-brand-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div class="flex items-center gap-2 text-brand-300">
                     <span class="w-2 h-2 rounded-full bg-brand-400 animate-pulse"></span>
                     <span>
-                      <strong>Criteria priorities have been customized ({modifiedCount} changes).</strong> Scorecard & weights above updated live!
+                      {modifiedCount > 0
+                        ? <strong>Priorities changed ({modifiedCount} pending changes).</strong>
+                        : <strong>Current priorities are confirmed.</strong>}
                     </span>
                   </div>
                   <button
                     type="button"
-                    disabled={evaluatingResponse || !responseFile}
-                    onClick={handleEvaluateResponse}
+                    disabled={evaluatingResponse || modifiedCount === 0}
+                    onClick={handleFinalizePriorities}
                     class="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-bold transition-all flex items-center gap-1.5 shadow"
                   >
-                    <span>⚡ Re-Run Gemini Evaluation</span>
+                    <span>{level3Result ? "Recalculate with Updated Priorities" : "Confirm Priorities & Generate Final Review"}</span>
                   </button>
+                </div>
+              )}
+
+              {finalizeMessage && weightedResult && (
+                <div class="mb-6 p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+                  <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div class="text-xs uppercase font-mono text-emerald-300">Final Level 3 Review</div>
+                      <div class="mt-1 text-sm font-semibold text-emerald-100">{finalizeMessage}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-4 text-xs">
+                      <div>
+                        <span class="block text-gray-400">Score</span>
+                        <strong class="text-xl text-white">{weightedResult.score}/100</strong>
+                      </div>
+                      <div>
+                        <span class="block text-gray-400">Readiness</span>
+                        <strong class="text-white">{weightedResult.readiness}</strong>
+                      </div>
+                      {weightedResult.hard_gate_pending && (
+                        <div>
+                          <span class="block text-gray-400">Gate status</span>
+                          <strong class="text-amber-300">Clarification pending</strong>
+                        </div>
+                      )}
+                      <div class="max-w-xs">
+                        <span class="block text-gray-400">Recommendation</span>
+                        <strong class="text-white">{weightedResult.recommendation}</strong>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1059,7 +1096,7 @@
                   )}
                 </button>
 
-                {/* Tab 3: Corrected Proposal */}
+                {/* Tab 3: Draft Revisions */}
                 <button
                   type="button"
                   disabled={!evaluationResult}
@@ -1072,7 +1109,7 @@
                       : "bg-dark-800/60 text-gray-300 hover:bg-dark-800 hover:text-white border border-gray-800"
                   }`}
                 >
-                  <span>✍️ Corrected Proposal</span>
+                  <span>✍️ Draft Revisions</span>
                 </button>
 
                 {/* Tab 4: Raw JSON */}
@@ -1122,25 +1159,28 @@
                       <div class="text-xs text-brand-300 font-semibold flex items-center gap-1.5">
                         <span>💡 Click any mark (1–5) to adapt priority weights!</span>
                       </div>
-                      {modifiedCount > 0 && (
+                      {evaluationResult && (
                         <button
                           type="button"
-                          disabled={adaptingDescriptions || evaluatingResponse}
-                          onClick={handleAdaptDescriptionsDirectly}
+                          disabled={evaluatingResponse || modifiedCount === 0}
+                          onClick={handleFinalizePriorities}
                           class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all flex items-center gap-1 shadow active:scale-95"
-                          title="Regenerate requirement descriptions with Lite Model immediately"
+                          title="Confirm priority changes and calculate the final review"
                         >
-                          {adaptingDescriptions ? (
+                          {evaluatingResponse ? (
                             <>
                               <svg class="w-3.5 h-3.5 animate-spin text-indigo-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                              <span>Adapting (Lite Model)...</span>
+                              <span>Calculating Level 3...</span>
                             </>
                           ) : (
                             <>
-                              <span>⚡ Adapt Text Now (Lite Model)</span>
+                              <span>{level3Result ? "Recalculate with Updated Priorities" : "Confirm Priorities & Generate Final Review"}</span>
                             </>
                           )}
                         </button>
+                      )}
+                      {evaluationResult && modifiedCount === 0 && (
+                        <span class="text-xs text-emerald-300">✓ Current priorities are confirmed</span>
                       )}
                     </div>
 
@@ -1218,9 +1258,24 @@
                             <span class="px-3 py-1 rounded-lg bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-mono font-bold">
                               {currentCriterion.id}
                             </span>
-                            <span class="px-3 py-1 rounded-lg bg-dark-700 text-gray-300 text-xs font-semibold">
+                              <span class="px-3 py-1 rounded-lg bg-dark-700 text-gray-300 text-xs font-semibold">
                               {currentCriterion.category || "Requirement"}
                             </span>
+                            {currentCriterion.hard_gate === true && (
+                              <span class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-semibold">
+                                Explicit hard gate
+                              </span>
+                            )}
+                            {currentCriterion.hard_gate_suggested && !currentCriterion.hard_gate_confirmed_by_user && (
+                              <div class="w-full mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                                <div class="font-semibold">The RFP suggests a possible hard gate.</div>
+                                <div class="mt-1 text-amber-100/80">{currentCriterion.hard_gate_reason || "Confirm whether failure should block readiness."}</div>
+                                <div class="mt-2 flex gap-2">
+                                  <button type="button" onClick={() => handleUpdateHardGate(currentCriterion.id, true)} class="px-2.5 py-1 rounded bg-rose-500/20 text-rose-200 border border-rose-500/40 font-semibold">Confirm hard gate</button>
+                                  <button type="button" onClick={() => handleUpdateHardGate(currentCriterion.id, false)} class="px-2.5 py-1 rounded bg-dark-800 text-gray-200 border border-gray-700 font-semibold">Keep as priority only</button>
+                                </div>
+                              </div>
+                            )}
                             {currentCriterion.is_user_modified && (
                               <span class="px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold">
                                 ✏️ User Customized
@@ -1337,7 +1392,7 @@
                           </div>
                         </div>
 
-                        {/* Description & Strategic Rationale */}
+                        {/* Immutable requirement text and rationale */}
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                           <div class="p-5 rounded-xl bg-dark-850/70 border border-gray-800">
                             <div class="flex flex-wrap items-center justify-between gap-1 mb-2">
@@ -1345,14 +1400,9 @@
                                 <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 Requirement Description
                               </h3>
-                              {currentCriterion.is_description_adapted && (
-                                <span class="text-2xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                  ⚡ Text Adapted to Mark {currentScore} (Lite Model)
-                                </span>
-                              )}
-                              {currentCriterion.is_user_modified && !currentCriterion.is_description_adapted && (
+                              {currentCriterion.is_user_modified && (
                                 <span class="text-2xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                                  ✏️ Mark {currentScore} (Will adapt text on Run Feedback)
+                                  ✏️ Mark {currentScore} (Pending confirmation)
                                 </span>
                               )}
                             </div>
@@ -1419,7 +1469,6 @@
                                 {item.title}
                               </h3>
 
-                              {/* Interactive Mini 5-Mark Selector */}
                               <div class="my-3 p-2.5 rounded-lg bg-dark-900 border border-gray-800">
                                 <div class="text-3xs uppercase font-mono text-gray-400 mb-1.5 flex justify-between">
                                   <span>Priority: Mark {sc}/5</span>
@@ -1431,40 +1480,22 @@
                                       key={m}
                                       type="button"
                                       onClick={() => handleUpdatePriority(item.id, m)}
-                                      class={`flex-1 py-1 rounded text-2xs font-bold transition-all ${
-                                        m === sc
-                                          ? sc === 5 ? "bg-rose-500 text-white shadow" :
-                                            sc === 4 ? "bg-orange-500 text-white shadow" :
-                                            sc === 3 ? "bg-amber-500 text-gray-950 shadow" : "bg-blue-500 text-white shadow"
-                                          : "bg-dark-800 text-gray-500 hover:text-white"
-                                      }`}
-                                      title={`Set priority to Mark ${m}`}
+                                      class={`flex-1 py-1 rounded text-2xs font-bold transition-all ${m === sc ? "bg-brand-500 text-white shadow" : "bg-dark-800 text-gray-500 hover:text-white"}`}
                                     >
                                       {m}
                                     </button>
                                   ))}
                                 </div>
                               </div>
-
-                              <p class="text-xs text-gray-300 mb-2 line-clamp-3">
-                                {item.description}
-                              </p>
-                              {item.is_description_adapted && (
-                                <div class="mb-2">
-                                  <span class="inline-block text-3xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                                    ⚡ Adapted to Mark {sc} (Lite Model)
-                                  </span>
-                                </div>
-                              )}
-                              {item.is_user_modified && !item.is_description_adapted && (
+                              <p class="text-xs text-gray-300 mb-2 line-clamp-3">{item.description}</p>
+                              {item.is_user_modified && (
                                 <div class="mb-2">
                                   <span class="inline-block text-3xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    ✏️ Modified (Will adapt text on Run Feedback)
+                                    Modified (Pending confirmation)
                                   </span>
                                 </div>
                               )}
                             </div>
-
                             <div class="pt-3 border-t border-gray-800 flex items-center justify-between">
                               <span class="text-2xs text-gray-400 font-mono">{item.category}</span>
                               {match && getComplianceBadge(match.status)}
@@ -1477,23 +1508,50 @@
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* TAB 2: PROPOSAL FEEDBACK (INTERACTIVE SCORECARD)              */}
-              {/* ============================================================ */}
+              {/* TAB 2: PROPOSAL FEEDBACK (INTERACTIVE SCORECARD) */}
               {activeTab === "feedback" && evaluationResult && (
                 <div class="space-y-6">
-                  {/* Executive Summary */}
-                  {evaluationResult.response_feedback?.executive_summary && (
+                  {weightedResult?.ranked_issues?.length > 0 && (
                     <div class="p-5 rounded-xl bg-dark-850 border border-gray-800">
-                      <div class="flex items-center justify-between mb-2">
-                        <h4 class="text-xs uppercase font-bold text-gray-400">Executive Summary</h4>
-                        <span class="text-xs text-brand-300 font-mono">
-                          Vendor: {evaluationResult.response_feedback.vendor_name || "Vendor Proposal"}
-                        </span>
+                      <h4 class="text-sm font-bold text-white mb-3">Issues to Fix First</h4>
+                      <div class="space-y-3">
+                        {weightedResult.ranked_issues.map((issue, index) => (
+                          <div key={issue.criterion_id || index} class="p-4 rounded-xl bg-dark-900 border border-gray-800">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                              <span class="font-bold text-white">{index + 1}. {issue.requirement_title || issue.criterion_id}</span>
+                              <span class="text-2xs px-2 py-1 rounded-full bg-brand-500/20 text-brand-300 font-mono">
+                                Priority {issue.priority_score}
+                              </span>
+                            </div>
+                            <div class="mt-1 text-xs text-gray-400">
+                              Status: <span class="text-gray-200">{issue.status}</span>
+                              {issue.hard_gate && <span class="ml-2 text-rose-300">Explicit hard gate</span>}
+                              {issue.validation_warnings?.length > 0 && (
+                                <span class="ml-2 text-amber-300">Manual evidence review required</span>
+                              )}
+                            </div>
+                            {issue.evaluation_notes && (
+                              <p class="mt-2 text-sm text-gray-300">{issue.evaluation_notes}</p>
+                            )}
+                            {(issue.rfp_evidence?.quote || issue.proposal_evidence?.quote) && (
+                              <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-2xs">
+                                {issue.rfp_evidence?.quote && (
+                                  <div class="p-2 rounded bg-dark-850 border border-gray-800">
+                                    <span class="block text-gray-500 uppercase font-mono">RFP evidence</span>
+                                    <span class="text-gray-300">{issue.rfp_evidence.quote}</span>
+                                  </div>
+                                )}
+                                {issue.proposal_evidence?.quote && (
+                                  <div class="p-2 rounded bg-dark-850 border border-gray-800">
+                                    <span class="block text-gray-500 uppercase font-mono">Proposal evidence</span>
+                                    <span class="text-gray-300">{issue.proposal_evidence.quote}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      <p class="text-sm text-gray-200 leading-relaxed">
-                        {evaluationResult.response_feedback.executive_summary}
-                      </p>
                     </div>
                   )}
 
@@ -1538,16 +1596,17 @@
                           Interactive Criteria-by-Criteria Scorecard
                         </h4>
                         <p class="text-2xs text-gray-400">
-                          Click the priority marks (1–5) in any row to test how priority adjustments impact the proposal score in real-time.
+                          Click the priority marks (1–5), then confirm to recalculate the final review.
                         </p>
                       </div>
-                      {modifiedCount > 0 && (
+                      {evaluationResult && (
                         <button
                           type="button"
-                          onClick={handleEvaluateResponse}
+                          disabled={evaluatingResponse || modifiedCount === 0}
+                          onClick={handleFinalizePriorities}
                           class="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"
                         >
-                          <span>⚡ Re-Run Gemini with Custom Priorities</span>
+                          <span>{level3Result ? "Recalculate with Updated Priorities" : "Confirm Priorities & Generate Final Review"}</span>
                         </button>
                       )}
                     </div>
@@ -1597,9 +1656,17 @@
                                       <span class="text-amber-400 font-bold ml-1 text-2xs">Custom</span>
                                     )}
                                   </div>
+                                  {item.confirmed_priority && (
+                                    <div class="mt-1 text-3xs text-gray-500 font-mono">
+                                      Suggested {item.suggested_priority ?? "-"} → Confirmed {item.confirmed_priority} · Contribution {item.weighted_contribution ?? "-"}
+                                    </div>
+                                  )}
                                 </td>
                                 <td class="py-3 px-4 whitespace-nowrap">
                                   {getComplianceBadge(item.status)}
+                                  {item.validation_warnings?.length > 0 && (
+                                    <div class="mt-1 text-3xs text-amber-300">Manual evidence review</div>
+                                  )}
                                 </td>
                                 <td class="py-3 px-4 text-gray-300 leading-relaxed max-w-md">
                                   {item.evaluation_notes}
@@ -1619,11 +1686,11 @@
               {/* ============================================================ */}
               {activeTab === "correction" && evaluationResult && (
                 <div class="space-y-6">
-                  {/* Actionable Recommendations */}
+                  {/* Draft revisions and vendor confirmation requirements */}
                   <div class="p-5 rounded-xl bg-dark-850 border border-gray-800">
                     <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-3">
                       <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      Actionable Recommendations to Address Custom Priorities
+                      Suggested Revisions Requiring Vendor Confirmation
                     </h4>
                     <ul class="space-y-2.5 text-xs text-gray-300">
                       {(evaluationResult.response_correction?.actionable_recommendations || []).map((rec, idx) => (
@@ -1637,13 +1704,13 @@
                     </ul>
                   </div>
 
-                  {/* Requirements Revisions / Corrected Proposal Details */}
+                  {/* Requirements Revisions / Draft Proposal Details */}
                   {evaluationResult.response_correction?.corrected_proposal && (
                     <div class="p-6 rounded-xl glass-card border border-gray-800">
                       <div class="mb-4 pb-3 border-b border-gray-800">
-                        <span class="text-xs uppercase tracking-wider text-brand-400 font-semibold font-mono">Enhanced Proposal Revision</span>
+                        <span class="text-xs uppercase tracking-wider text-brand-400 font-semibold font-mono">Draft Revision - Vendor Confirmation Required</span>
                         <h3 class="text-xl font-bold text-white mt-1">
-                          {evaluationResult.response_correction.corrected_proposal.title || "Corrected Proposal Document"}
+                          {evaluationResult.response_correction.corrected_proposal.title || "Draft Proposal Revisions"}
                         </h3>
                       </div>
 
@@ -1671,7 +1738,7 @@
                                   </p>
                                 )}
                                 <p class="text-xs text-gray-200 bg-dark-900/60 p-3 rounded-lg border border-gray-800/80">
-                                  {rev.corrected_solution_text}
+                                  {rev.suggested_revision || rev.corrected_solution_text}
                                 </p>
                               </div>
                             ))}
@@ -1681,13 +1748,13 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mb-6">
                           {evaluationResult.response_correction.corrected_proposal.database_integration && (
                             <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
-                              <span class="text-brand-400 block font-semibold mb-1">Database Integration (REQ-03)</span>
+                              <span class="text-brand-400 block font-semibold mb-1">Database Integration</span>
                               <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.database_integration}</p>
                             </div>
                           )}
                           {evaluationResult.response_correction.corrected_proposal.role_based_access_control && (
                             <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
-                              <span class="text-brand-400 block font-semibold mb-1">Role-Based Access Control (REQ-04)</span>
+                              <span class="text-brand-400 block font-semibold mb-1">Role-Based Access Control</span>
                               <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.role_based_access_control}</p>
                             </div>
                           )}
@@ -1699,13 +1766,13 @@
                           )}
                           {evaluationResult.response_correction.corrected_proposal.timeline_and_onboarding && (
                             <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
-                              <span class="text-brand-400 block font-semibold mb-1">Timeline & Rollout (REQ-05)</span>
+                              <span class="text-brand-400 block font-semibold mb-1">Timeline & Rollout</span>
                               <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.timeline_and_onboarding}</p>
                             </div>
                           )}
                           {evaluationResult.response_correction.corrected_proposal.support_and_slas && (
                             <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
-                              <span class="text-brand-400 block font-semibold mb-1">Support, SLAs & Maintenance (REQ-06)</span>
+                              <span class="text-brand-400 block font-semibold mb-1">Support, SLAs & Maintenance</span>
                               <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.support_and_slas}</p>
                             </div>
                           )}
@@ -1715,7 +1782,7 @@
                       {/* Full Proposal Markdown */}
                       {evaluationResult.response_correction.corrected_proposal.full_proposal_markdown && (
                         <div class="mt-4 pt-4 border-t border-gray-800">
-                          <h4 class="text-xs uppercase font-bold text-gray-400 mb-2 font-mono">Full Corrected Markdown Document</h4>
+                          <h4 class="text-xs uppercase font-bold text-gray-400 mb-2 font-mono">Draft Markdown - Requires Vendor Confirmation</h4>
                           <pre class="p-4 rounded-xl bg-dark-950 font-mono text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap border border-gray-800 max-h-96 custom-scrollbar">
                             {evaluationResult.response_correction.corrected_proposal.full_proposal_markdown}
                           </pre>

@@ -12,6 +12,7 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -49,19 +50,19 @@ You have been tasked with evaluating a vendor's proposal/response against a form
 
 ---
 
-### CRITICAL INSTRUCTIONS ON USER-CUSTOMIZED CRITERIA & REQUIREMENT DESCRIPTIONS:
-1. The customer/evaluator has customized the priority scores (1 to 5) AND the requirement descriptions:
-   - READ THE `description` AND `rationale` CAREFULLY: They have been dynamically adapted by the evaluator to match the exact priority score!
-   - Score 5 (Must-Have / Deal-Breaker): The description explicitly commands that this is a strict, non-negotiable mandatory requirement. Failure, omission, or deferral on ANY Score 5 requirement MUST result in an immediate severe penalty (Non-Compliant or Partially Compliant), an overall grade of D or F, and a recommendation to Reject or require critical clarifications!
-   - Score 4 (High Priority): Essential operational deliverable; shortcomings must be flagged as major weaknesses.
-   - Score 3 (Medium Priority): Standard expected requirement for delivery.
-   - Score 2 (Low Priority): Secondary convenience; low penalty if deferred.
-   - Score 1 (Nice to Have / Optional): The requirement description explicitly states that absence or omission does NOT penalize the vendor or lower the score. DO NOT penalize the vendor or lower the overall grade if a Score 1 item is omitted, unaddressed, or deferred! In the scorecard, mark status as Compliant or Partially Compliant with evaluation note "Optional enhancement (Score 1) not required for award."
-2. YOU MUST BASE YOUR EVALUATION ON THESE ADAPTED DESCRIPTIONS AND SCORES:
-   - If a requirement was modified to Score 1 (Nice to Have), you must treat it as optional regardless of general industry practices.
-   - If a requirement was modified to Score 5 (Must-Have), you must treat it as an uncompromising disqualifying gatekeeper.
-3. In your Task A Scorecard, reflect the exact assigned priority level for every requirement.
-4. In your Task B Corrected Proposal, focus improvements on addressing all Score 5 (Must-Have) and Score 4 (High Priority) requirements first.
+### CRITICAL INSTRUCTIONS ON REQUIREMENTS AND PRIORITIES:
+1. Treat each requirement `description`, `rationale`, and source quote as immutable customer text. Priority changes are metadata only and must never change the requirement's meaning.
+2. Evaluate factual coverage using only the original requirement text and its source quote. Return one normalized status per criterion: `addressed`, `partial`, `missing`, `contradicted`, or `unverifiable`.
+3. Priority 5 is not automatically a hard gate. Only a criterion with `hard_gate: true` is a disqualifying gatekeeper.
+4. In your Task A Scorecard, reflect the assigned priority level. Echo the criteria' hard-gate value only as `source_hard_gate`; do not create or override hard-gate policy.
+5. Treat Level 2 grade and recommendation as descriptive context only; the canonical weighted decision is calculated later by Level 3.
+6. In your Task B corrected proposal, provide suggested wording and fixes only. Do not invent vendor capabilities, guarantees, SLAs, prices, or timelines. Every proposed revision requires vendor confirmation.
+7. Do not reduce compliance because of details that the RFP does not explicitly require. If additional technical detail would be useful but is not required, put it under `suggested_clarifications` rather than using it as a reason for `partial`, `missing`, or `contradicted`.
+8. For every scorecard row, include grounded evidence from both documents when available. If the proposal contains no relevant statement for a requirement, use status `missing` and an empty proposal evidence quote. Use `unverifiable` only when the proposal makes a relevant claim but provides insufficient information to verify it. Never invent evidence.
+9. A criterion may contain multiple explicit checks or sub-requirements. A criterion is `addressed` only when every mandatory check is explicitly covered. Use `partial` when at least one mandatory check is covered and another is missing, vague, or deferred. Use `missing` when none is mentioned. Do not infer omitted checks from a generic feature name.
+10. STATUS DEFINITIONS: `addressed` means all explicit mandatory checks are clearly satisfied; `partial` means at least one is satisfied but another explicit check is missing, vague, or deferred; `missing` means no relevant proposal statement exists; `contradicted` means the proposal explicitly conflicts with the RFP; `unverifiable` means the proposal makes a relevant claim but the wording is too ambiguous or unsupported to verify.
+11. A proposal promising delivery earlier than an "within N months" deadline does not contradict the deadline. Evaluate whether the required milestone, scope, and feasibility are sufficiently described.
+12. Do not infer compliance with a prohibition from silence. For constraints such as "no database migration", require an explicit proposal statement confirming no migration or replacement. Existing PostgreSQL integration alone is `partial` or `unverifiable` for the no-migration check.
 
 ---
 
@@ -71,13 +72,13 @@ You have been tasked with evaluating a vendor's proposal/response against a form
 1. Evaluate the vendor's response against each criterion in the criteria list.
 2. Highlight specific **Strengths** of the proposal (what was addressed well, if anything).
 3. Highlight specific **Weaknesses and Critical Gaps** (which must-have or high-priority criteria were missing, vague, deferred, or inadequate).
-4. Provide a structured criteria-by-criteria scorecard with: criterion_id, requirement_title, priority_level, status (Compliant, Partially Compliant, Non-Compliant), and evaluation_notes.
+4. Provide a structured criteria-by-criteria scorecard with: criterion_id, requirement_title, priority_level, status, source_hard_gate, rfp_evidence, proposal_evidence, matched_checks, missing_checks, check_results, suggested_clarifications, and evaluation_notes.
 5. Provide an overall Compliance Grade (A, B, C, D, or F) and bid recommendation (Accept, Shortlist with Clarifications, or Reject).
 
 #### Task B (Correction & Actionable Improvements):
 1. Provide a concrete list of **Actionable Recommendations** for improving the proposal to win the bid, specifically addressing all missing or partially compliant criteria.
 2. Highlight the **Key Improvements Made** compared to the original proposal.
-3. Provide a **Corrected and Enhanced Version** of the proposal that completely addresses all criteria, giving top priority to all Score 5 and Score 4 requirements.
+3. Provide suggested revisions for all relevant criteria, giving top priority to Score 5 and Score 4 requirements. Do not present suggestions as approved vendor commitments.
 
 ---
 
@@ -103,7 +104,22 @@ You MUST return your response strictly as a single valid, well-formed JSON objec
         "criterion_id": "REQ-01",
         "requirement_title": "string",
         "priority_level": "string",
-        "status": "Compliant | Partially Compliant | Non-Compliant",
+        "status": "addressed | partial | missing | contradicted | unverifiable",
+        "source_hard_gate": false,
+                "matched_checks": ["Explicit check covered by the proposal"],
+                "missing_checks": ["Explicit check not covered or not verifiable"],
+                "check_results": [
+                    {{"check_id": "REQ-01.1", "status": "addressed", "evidence_quote": "verbatim proposal quote"}}
+                ],
+                "rfp_evidence": {{
+                    "section": "string",
+                    "quote": "verbatim RFP quote or empty string"
+                }},
+                "proposal_evidence": {{
+                    "section": "string",
+                    "quote": "verbatim proposal quote or empty string"
+                }},
+                "suggested_clarifications": ["string"],
         "evaluation_notes": "string"
       }}
     ]
@@ -119,29 +135,18 @@ You MUST return your response strictly as a single valid, well-formed JSON objec
       "string - Improvement 1",
       "string - Improvement 2"
     ],
-    "corrected_proposal": {{
-      "title": "string - Title of the corrected proposal",
-      "executive_summary": "string",
-      "technical_solution": "string - Comprehensive technical solution addressing all requirements",
-      "requirements_revisions": [
-        {{
-          "criterion_id": "REQ-01",
-          "requirement_title": "string",
-          "priority_score": 5,
-          "priority_level": "string",
-          "deficiency_resolved": "string - What was missing or weak in the original response",
-          "corrected_solution_text": "string - Exact rewritten text satisfying this requirement"
+        "corrected_proposal": {{
+            "title": "Draft Proposal Revisions",
+            "requirements_revisions": [
+                {{
+                    "criterion_id": "REQ-01",
+                    "deficiency_resolved": "string",
+                    "suggested_revision": "string - Draft wording requiring vendor confirmation",
+                    "requires_vendor_confirmation": true,
+                    "confirmation_fields": ["string"]
+                }}
+            ]
         }}
-      ],
-      "database_integration": "string - Detailed database integration plan (PostgreSQL without migration if specified)",
-      "role_based_access_control": "string - Role-based access control and security governance",
-      "low_stock_alerts": "string - Automated alerts and notification workflows",
-      "timeline_and_onboarding": "string - Implementation milestones, pilot, rollout, and onboarding timeline",
-      "support_and_slas": "string - Support SLAs, response times, and maintenance terms",
-      "assumptions_and_risks": "string - Operational risks, assumptions, and mitigation",
-      "pricing_and_budget": "string - Commercial pricing and budget alignment",
-      "full_proposal_markdown": "string - Full, beautifully formatted markdown text of the corrected proposal"
-    }}
   }}
 }}
 
@@ -206,6 +211,7 @@ def _call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         temperature=0.2,
+                        max_output_tokens=8192,
                     ),
                 )
                 if response.text:
@@ -222,13 +228,17 @@ def _call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None
 
     # 2. Try google-generativeai (legacy SDK)
     try:
-        import google.generativeai as legacy_genai
+        legacy_genai = importlib.import_module("google.generativeai")
 
         legacy_genai.configure(api_key=api_key)
         target_model = model_name or os.getenv("STRONG_MODEL") or os.getenv("strong_model") or os.getenv("MEDIUM_MODEL") or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash"
         model = legacy_genai.GenerativeModel(
             model_name=target_model,
-            generation_config={"response_mime_type": "application/json", "temperature": 0.2},
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.2,
+                "max_output_tokens": 8192,
+            },
         )
         response = model.generate_content(prompt)
         return response.text
@@ -241,9 +251,7 @@ def _call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None
 
 
 def _parse_gemini_json_output(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Extract structured feedback and correction JSON dictionaries from Gemini output.
-    """
+    """Parse and validate Gemini's canonical feedback/correction wrapper."""
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
@@ -251,31 +259,49 @@ def _parse_gemini_json_output(raw_text: str) -> Tuple[Dict[str, Any], Dict[str, 
 
     try:
         data = json.loads(cleaned)
-        if isinstance(data, dict):
-            feedback_data = data.get("feedback") or data.get("Task A") or {}
-            correction_data = data.get("correction") or data.get("Task B") or {}
+    except json.JSONDecodeError as err:
+        raise ValueError(
+            "Gemini returned invalid or truncated JSON. "
+            f"JSON error: {err}. Response preview: {cleaned[:500]}"
+        ) from err
 
-            # Handle edge case where values might be json strings
-            if isinstance(feedback_data, str):
-                try:
-                    feedback_data = json.loads(feedback_data)
-                except Exception:
-                    feedback_data = {"raw_feedback": feedback_data}
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Gemini output must be a JSON object, got {type(data).__name__}."
+        )
 
-            if isinstance(correction_data, str):
-                try:
-                    correction_data = json.loads(correction_data)
-                except Exception:
-                    correction_data = {"raw_correction": correction_data}
+    feedback_data = data.get("feedback") or data.get("response_feedback") or data.get("Task A")
+    correction_data = data.get("correction") or data.get("response_correction") or data.get("Task B")
 
-            if feedback_data or correction_data:
-                return feedback_data, correction_data
+    if feedback_data is None and isinstance(data.get("scorecard"), list):
+        feedback_data = data
+        correction_data = {}
 
-    except json.JSONDecodeError:
-        pass
+    if isinstance(feedback_data, str):
+        try:
+            feedback_data = json.loads(feedback_data)
+        except json.JSONDecodeError as err:
+            raise ValueError("Gemini returned feedback as an invalid JSON string.") from err
 
-    # Fallback if raw text wasn't perfectly parsed
-    return {"raw_output": raw_text}, {"raw_output": raw_text}
+    if isinstance(correction_data, str):
+        try:
+            correction_data = json.loads(correction_data)
+        except json.JSONDecodeError as err:
+            raise ValueError("Gemini returned correction as an invalid JSON string.") from err
+
+    if not isinstance(feedback_data, dict):
+        raise ValueError("Gemini output does not contain a valid 'feedback' object.")
+
+    scorecard = feedback_data.get("scorecard")
+    if not isinstance(scorecard, list) or not scorecard:
+        raise ValueError("Gemini feedback does not contain a non-empty 'scorecard' array.")
+
+    if correction_data is None:
+        correction_data = {}
+    if not isinstance(correction_data, dict):
+        raise ValueError("Gemini output contains an invalid 'correction' object.")
+
+    return feedback_data, correction_data
 
 
 def lvl2_feedback_response(
@@ -358,11 +384,34 @@ def lvl2_feedback_response(
 
     print(f"[AI] Evaluating '{resp_path.name}' against criteria in '{crit_path.name}'...")
     raw_api_output = _call_gemini_api(prompt, api_key=effective_api_key, model_name=model_name)
+    print(f"[Gemini] Raw response length: {len(raw_api_output)} characters")
+    print(f"[Gemini] Response ending: {raw_api_output[-500:]}")
 
     # -----------------------------------------------------------------
     # 4. Extract Structured JSON Output
     # -----------------------------------------------------------------
     feedback_data, correction_data = _parse_gemini_json_output(raw_api_output)
+
+    criteria_items = criteria_data.get("criteria", [])
+    scorecard_items = feedback_data.get("scorecard", [])
+    criteria_ids = {
+        str(item.get("id", "")).strip().upper()
+        for item in criteria_items
+    }
+    scorecard_ids = {
+        str(item.get("criterion_id", "")).strip().upper()
+        for item in scorecard_items
+    }
+    missing_ids = criteria_ids - scorecard_ids
+    unknown_ids = scorecard_ids - criteria_ids
+    if missing_ids:
+        raise ValueError(
+            f"Gemini scorecard is missing criteria: {sorted(missing_ids)}"
+        )
+    if unknown_ids:
+        raise ValueError(
+            f"Gemini scorecard contains unknown criteria: {sorted(unknown_ids)}"
+        )
 
     # Ensure source metadata is present
     if isinstance(feedback_data, dict) and "response_file" not in feedback_data:

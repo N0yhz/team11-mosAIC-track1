@@ -23,6 +23,7 @@ Supported SDKs:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -50,7 +51,7 @@ You are an expert Senior Business Analyst and Requirements Engineer.
 Analyze the following Request for Proposal (RFP) / Customer Requirements document carefully.
 
 Your task:
-1. Extract ALL discrete requirements and evaluation criteria (both functional and non-functional).
+1. Extract ALL discrete requirements and evaluation criteria (both functional and non-functional). Split independently testable constraints into separate criteria when the RFP gives them separate acceptance conditions. For this RFP, budget range, first-year support inclusion, pilot deadline, full-rollout deadline, and any explicit no-migration constraint must be represented as separate criteria when present.
 2. Categorize each criterion (e.g., Core Functionality, Integration & Database, Security & Access Control, Deployment & Onboarding, SLA & Maintenance).
 3. Score each criterion priority on a scale of 1 to 5:
    - 5 = 'must-have' (Critical, non-negotiable core functionality; the system cannot function without it)
@@ -60,6 +61,9 @@ Your task:
    - 1 = 'nice to have' (Optional enhancement, visual flourish, low urgency)
 4. Provide a clear, convincing rationale explaining why this score was assigned.
 5. Identify any key constraints, budget, timeline, and decision dates noted in the document.
+6. Preserve the customer's wording and include a short verbatim source quote for every criterion. Do not invent technical details or acceptance criteria that are not explicit in the RFP.
+7. Represent compound requirements with explicit `checks`. Each check must be independently testable and marked `mandatory`; do not collapse multiple access, delivery, deadline, or constraint checks into a generic feature label.
+8. Hard-gate policy is only a suggestion at extraction time. Set `hard_gate` to false by default, and populate `hard_gate_suggested`, `hard_gate_confidence`, `hard_gate_reason`, and `requires_user_confirmation`. Never infer a confirmed hard gate from priority 5 alone.
 
 ### CUSTOMER RFP DOCUMENT:
 ---
@@ -82,7 +86,21 @@ Return your analysis strictly as a valid JSON object matching this schema:
       "score": 5,
       "priority_level": "5 - Must have",
       "description": "Detailed description of what the client requires",
-      "rationale": "Clear explanation justifying the priority score"
+    "rationale": "Clear explanation justifying the priority score",
+        "source_quote": "Short verbatim quote from the RFP supporting this criterion",
+        "checks": [
+            {{
+                "id": "REQ-01.1",
+                "text": "Independently testable requirement check",
+                "mandatory": true
+            }}
+        ],
+        "hard_gate": false,
+        "hard_gate_suggested": false,
+        "hard_gate_confidence": 0.0,
+        "hard_gate_reason": "",
+        "requires_user_confirmation": false,
+        "interpretation_note": ""
     }}
   ]
 }}
@@ -162,7 +180,7 @@ def _call_gemini(prompt: str, api_key: str, model_name: Optional[str] = None) ->
 
     # 2. Fallback to google-generativeai (legacy SDK)
     try:
-        import google.generativeai as legacy_genai
+        legacy_genai = importlib.import_module("google.generativeai")
 
         legacy_genai.configure(api_key=api_key)
         target_model = model_name or os.getenv("MEDIUM_MODEL") or os.getenv("medium_model") or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash"
@@ -198,6 +216,14 @@ def _clean_json_response(raw_text: str) -> Dict[str, Any]:
             item["score"] = item["priority_score"]
         if "priority_score" not in item and "score" in item:
             item["priority_score"] = item["score"]
+        item.setdefault("source_quote", "")
+        item.setdefault("checks", [])
+        item.setdefault("hard_gate", False)
+        item.setdefault("hard_gate_suggested", False)
+        item.setdefault("hard_gate_confidence", 0.0)
+        item.setdefault("hard_gate_reason", "")
+        item.setdefault("requires_user_confirmation", False)
+        item.setdefault("interpretation_note", "")
 
     return data
 
