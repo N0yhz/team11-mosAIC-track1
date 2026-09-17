@@ -1,0 +1,81 @@
+{
+  "project_title": "Warehouse Inventory Dashboard",
+  "client_name": "NordFrame Logistics GmbH",
+  "industry": "Logistics / Warehousing",
+  "summary": "NordFrame Logistics seeks a web-based dashboard to consolidate inventory tracking across 6 regional warehouses in Germany and Austria. The system must integrate with their existing PostgreSQL database, provide real-time visibility, automated low-stock alerts, and strict role-based access control.",
+  "budget": "€80,000–€120,000 total, including first year of support",
+  "timeline": "Working pilot at one warehouse within 3 months; full rollout to all 6 sites within 6 months",
+  "total_criteria": 7,
+  "criteria": [
+    {
+      "id": "REQ-01",
+      "title": "Web-based Inventory Dashboard",
+      "category": "Core Functionality",
+      "score": 5,
+      "priority_level": "5 - Must have",
+      "description": "A web-based dashboard showing real-time inventory levels across all 6 warehouses.",
+      "rationale": "This is the primary deliverable and the core reason for the RFP, enabling centralized, real-time stock visibility.",
+      "priority_score": 5
+    },
+    {
+      "id": "REQ-03",
+      "title": "PostgreSQL Database Integration",
+      "category": "Integration & Database",
+      "score": 5,
+      "priority_level": "5 - Must have",
+      "description": "Integration with existing PostgreSQL inventory database with no migration to a new database.",
+      "rationale": "Non-negotiable architectural constraint; the client explicitly mandates using the existing database without migration.",
+      "priority_score": 5
+    },
+    {
+      "id": "REQ-04",
+      "title": "Role-Based Access Control",
+      "category": "Security & Access Control",
+      "score": 5,
+      "priority_level": "5 - Must have",
+      "description": "Role-based access where warehouse managers only see their own site and HQ staff see all sites.",
+      "rationale": "Essential for data privacy, operational security, and ensuring appropriate user permissions across organizational tiers.",
+      "priority_score": 5
+    },
+    {
+      "id": "REQ-02",
+      "title": "Automated Low-Stock Alerts",
+      "category": "Core Functionality",
+      "score": 4,
+      "priority_level": "4 - High priority",
+      "description": "Automated low-stock alerts sent to warehouse managers when items fall below a configurable threshold.",
+      "rationale": "Crucial for operational success to prevent stockouts and automate manual monitoring, directly improving warehouse efficiency.",
+      "priority_score": 4
+    },
+    {
+      "id": "REQ-05",
+      "title": "Data Migration and Onboarding Plan",
+      "category": "Deployment & Onboarding",
+      "score": 4,
+      "priority_level": "4 - High priority",
+      "description": "A data migration / onboarding plan for rolling this out across all 6 sites with minimal disruption.",
+      "rationale": "High business value required to ensure smooth operational transition and adoption across multi-site locations.",
+      "priority_score": 4
+    },
+    {
+      "id": "REQ-06",
+      "title": "Support and Maintenance Terms",
+      "category": "SLA & Maintenance",
+      "score": 4,
+      "priority_level": "4 - High priority",
+      "description": "Support & maintenance terms after go-live including response times and SLAs.",
+      "rationale": "Important for ensuring long-term system reliability, operational continuity, and is explicitly included within the budget scope.",
+      "priority_score": 4
+    },
+    {
+      "id": "REQ-07",
+      "title": "Documentation of Assumptions, Limitations, and Risks",
+      "category": "Core Functionality",
+      "score": 4,
+      "priority_level": "4 - High priority",
+      "description": "Clear documentation of any assumptions, limitations, or risks, since inventory decisions will be made based on this system.",
+      "rationale": "Critical for risk management and governance, as business-critical inventory decisions rely directly on the system's outputs.",
+      "priority_score": 4
+    }
+  ]
+}

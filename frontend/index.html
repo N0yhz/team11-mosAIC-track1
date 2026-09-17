@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RFP Evaluator AI • Interactive Criteria & Proposal Workbench</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            dark: {
+              950: '#070a13',
+              900: '#0c111f',
+              850: '#111827',
+              800: '#172033',
+              700: '#23304a',
+              600: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & Babel CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #17213c 0%, #070a13 80%);
+      color: #f1f5f9;
+      min-height: 100vh;
+    }
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      background: rgba(23, 32, 51, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .glow-score-5 {
+      box-shadow: 0 0 35px -5px rgba(239, 68, 68, 0.35);
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+    .glow-score-4 {
+      box-shadow: 0 0 30px -5px rgba(249, 115, 22, 0.3);
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+    .glow-score-3 {
+      box-shadow: 0 0 25px -5px rgba(234, 179, 8, 0.3);
+      border-color: rgba(234, 179, 8, 0.4);
+    }
+    .glow-score-2 {
+      box-shadow: 0 0 25px -5px rgba(20, 184, 166, 0.25);
+      border-color: rgba(20, 184, 166, 0.35);
+    }
+    .glow-score-1 {
+      box-shadow: 0 0 20px -5px rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.03); }
+    }
+    .animate-pulse-slow {
+      animation: pulse-slow 3s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-brand-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Standard 1-5 Priority Definitions
+    const PRIORITY_MARKS = [
+      {
+        mark: 1,
+        title: "Nice to Have",
+        subtext: "Optional bonus / non-critical",
+        badgeColor: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+        activeColor: "bg-blue-500",
+        ringColor: "ring-blue-400",
+        trackColor: "from-blue-500 to-cyan-500",
+        pillActive: "bg-blue-600 text-white border-blue-400",
+        tag: "Optional",
+        icon: "💡"
+      },
+      {
+        mark: 2,
+        title: "Low Priority",
+        subtext: "Minor operational convenience",
+        badgeColor: "bg-teal-500/20 text-teal-300 border-teal-500/30",
+        activeColor: "bg-teal-500",
+        ringColor: "ring-teal-400",
+        trackColor: "from-blue-500 via-cyan-500 to-teal-500",
+        pillActive: "bg-teal-600 text-white border-teal-400",
+        tag: "Low",
+        icon: "⚡"
+      },
+      {
+        mark: 3,
+        title: "Medium Priority",
+        subtext: "Standard RFP requirement",
+        badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+        activeColor: "bg-amber-500",
+        ringColor: "ring-amber-400",
+        trackColor: "from-blue-500 via-teal-500 to-amber-500",
+        pillActive: "bg-amber-600 text-gray-950 font-bold border-amber-400",
+        tag: "Standard",
+        icon: "⚖️"
+      },
+      {
+        mark: 4,
+        title: "High Priority",
+        subtext: "Critical operational requirement",
+        badgeColor: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+        activeColor: "bg-orange-500",
+        ringColor: "ring-orange-400",
+        trackColor: "from-teal-500 via-amber-500 to-orange-500",
+        pillActive: "bg-orange-600 text-white border-orange-400",
+        tag: "High",
+        icon: "🔥"
+      },
+      {
+        mark: 5,
+        title: "Must-Have",
+        subtext: "Mandatory deal-breaker requirement",
+        badgeColor: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+        activeColor: "bg-rose-500",
+        ringColor: "ring-rose-400",
+        trackColor: "from-amber-500 via-orange-500 to-rose-600",
+        pillActive: "bg-rose-600 text-white border-rose-400",
+        tag: "Deal-Breaker",
+        icon: "🚨"
+      }
+    ];
+
+    function App() {
+      // Step 1: RFP & Criteria Extraction State
+      const [rfpFile, setRfpFile] = useState(null);
+      const [extractingCriteria, setExtractingCriteria] = useState(false);
+      const [criteriaReport, setCriteriaReport] = useState(null);
+      const [originalCriteria, setOriginalCriteria] = useState(null);
+      
+      // Step 2: Response & Evaluation State
+      const [responseFile, setResponseFile] = useState(null);
+      const [evaluatingResponse, setEvaluatingResponse] = useState(false);
+      const [progressStep, setProgressStep] = useState(0);
+      const [evaluationResult, setEvaluationResult] = useState(null);
+
+      // UI View State
+      const [activeTab, setActiveTab] = useState("criteria_slide");
+      const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+      const [viewMode, setViewMode] = useState("slide"); // "slide" or "grid"
+      const [scoreFilter, setScoreFilter] = useState("all");
+      const [autoPlay, setAutoPlay] = useState(false);
+      const [error, setError] = useState(null);
+      const [copied, setCopied] = useState(false);
+      const [adaptingDescriptions, setAdaptingDescriptions] = useState(false);
+      const [adaptationMessage, setAdaptationMessage] = useState(null);
+
+      const rfpInputRef = useRef(null);
+      const responseInputRef = useRef(null);
+
+      const progressSteps = [
+        "1/3 Sending your tailored criteria priorities (1–5) to Gemini...",
+        "2/3 Evaluating vendor proposal compliance against your custom weights...",
+        "3/3 Generating customized scorecard, gap analysis & corrected revisions..."
+      ];
+
+      // Auto-slide effect
+      useEffect(() => {
+        let timer;
+        const criteriaList = criteriaReport?.criteria || [];
+        if (autoPlay && criteriaList.length > 1) {
+          timer = setInterval(() => {
+            setCurrentSlideIndex((prev) => (prev + 1) % criteriaList.length);
+          }, 5000);
+        }
+        return () => clearInterval(timer);
+      }, [autoPlay, criteriaReport]);
+
+      // Keyboard navigation for slides
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (viewMode !== "slide" || activeTab !== "criteria_slide") return;
+          const criteriaList = criteriaReport?.criteria || [];
+          if (criteriaList.length === 0) return;
+
+          if (e.key === "ArrowRight") {
+            setCurrentSlideIndex((prev) => (prev + 1) % criteriaList.length);
+          } else if (e.key === "ArrowLeft") {
+            setCurrentSlideIndex((prev) => (prev - 1 + criteriaList.length) % criteriaList.length);
+          }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+      }, [viewMode, activeTab, criteriaReport]);
+
+      // Determine API base URL
+      const getApiBase = () => {
+        return window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8001";
+      };
+
+      // -----------------------------------------------------------------
+      // STAGE 1: Extract RFP Criteria
+      // -----------------------------------------------------------------
+      const handleExtractCriteria = async (e) => {
+        if (e) e.preventDefault();
+        if (!rfpFile) {
+          setError("Please select or drop a customer RFP file first.");
+          return;
+        }
+
+        setError(null);
+        setExtractingCriteria(true);
+
+        try {
+          const formData = new FormData();
+          formData.append("rfp_file", rfpFile);
+
+          const res = await fetch(`${getApiBase()}/api/extract-criteria`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Server error: HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          const report = data.criteria_report || {};
+          setCriteriaReport(report);
+          setOriginalCriteria(JSON.parse(JSON.stringify(report.criteria || [])));
+          setCurrentSlideIndex(0);
+          setActiveTab("criteria_slide");
+        } catch (err) {
+          setError(err.message || "Failed to extract criteria from RFP.");
+        } finally {
+          setExtractingCriteria(false);
+        }
+      };
+
+      // Instant Sample Criteria Loader
+      const handleLoadSampleCriteria = async () => {
+        setError(null);
+        setExtractingCriteria(true);
+        try {
+          const res = await fetch(`${getApiBase()}/api/sample/criteria`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          setCriteriaReport(data);
+          setOriginalCriteria(JSON.parse(JSON.stringify(data.criteria || [])));
+          setCurrentSlideIndex(0);
+          setActiveTab("criteria_slide");
+        } catch (err) {
+          setError("Failed to load sample criteria: " + err.message);
+        } finally {
+          setExtractingCriteria(false);
+        }
+      };
+
+      const handleLoadSampleRfpFile = () => {
+        const sampleRfp = `# Request for Proposal • Warehouse Inventory Dashboard\n**Client:** NordFrame Logistics GmbH\n**Industry:** Logistics / Warehousing\n\n## Requirements\n1. Web-based dashboard showing real-time inventory levels across all 6 warehouses.\n2. Automated low-stock alerts sent to warehouse managers.\n3. Integration with existing PostgreSQL database — no migration.\n4. Role-based access (managers see own site, HQ sees all).\n5. Data migration / onboarding plan across 6 sites.\n6. Support & maintenance terms (SLAs).\n7. Documentation of assumptions, limitations, or risks.\n\n## Budget\n€80,000–€120,000 total.\n## Timeline\n3-month pilot, 6-month full rollout.`;
+        const blob = new Blob([sampleRfp], { type: "text/markdown" });
+        setRfpFile(new File([blob], "rfp_nordframe.md", { type: "text/markdown" }));
+      };
+
+      // -----------------------------------------------------------------
+      // CRITERIA INTERACTION: Change Priority Marks (1 - 5)
+      // Updates criteria and synchronously triggers live proposal recalculation!
+      // -----------------------------------------------------------------
+      const handleUpdatePriority = (criterionId, newScore) => {
+        if (!criteriaReport?.criteria) return;
+
+        const updatedCriteria = criteriaReport.criteria.map((c) => {
+          if (c.id === criterionId) {
+            const markDef = PRIORITY_MARKS[newScore - 1];
+            return {
+              ...c,
+              score: newScore,
+              priority_score: newScore,
+              priority_level: `${newScore} - ${markDef.title}`,
+              is_user_modified: true,
+              is_description_adapted: false,
+            };
+          }
+          return c;
+        });
+
+        setCriteriaReport({
+          ...criteriaReport,
+          criteria: updatedCriteria,
+        });
+      };
+
+      const handleResetCriteria = () => {
+        if (!originalCriteria || !criteriaReport) return;
+        setCriteriaReport({
+          ...criteriaReport,
+          criteria: JSON.parse(JSON.stringify(originalCriteria)),
+        });
+      };
+
+      // -----------------------------------------------------------------
+      // ADAPT DESCRIPTIONS: Rephrase with LITE_MODEL
+      // -----------------------------------------------------------------
+      const handleAdaptDescriptionsDirectly = async () => {
+        if (!criteriaReport?.criteria) return;
+        setError(null);
+        setAdaptingDescriptions(true);
+        setAdaptationMessage("⚡ Regenerating requirement descriptions with Lite Model (gemini-3.5-flash-lite) to fit priority marks...");
+        try {
+          const res = await fetch(`${getApiBase()}/api/criteria/adapt-descriptions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ criteria_report: criteriaReport, only_modified: true }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${res.status}`);
+          }
+          const data = await res.json();
+          if (data.criteria_report) {
+            setCriteriaReport(data.criteria_report);
+            setAdaptationMessage("✅ Requirement descriptions updated on frontend!");
+            setTimeout(() => setAdaptationMessage(null), 3000);
+          }
+        } catch (err) {
+          setError("Failed to adapt descriptions: " + err.message);
+        } finally {
+          setAdaptingDescriptions(false);
+        }
+      };
+
+      // -----------------------------------------------------------------
+      // STAGE 2: Evaluate Response with Custom Criteria
+      // 1st: Updates criteria requirement descriptions on frontend with Lite Model
+      // 2nd: Starts feedback evaluation with Strong Model
+      // -----------------------------------------------------------------
+      const handleEvaluateResponse = async (e) => {
+        if (e) e.preventDefault();
+        if (!responseFile) {
+          setError("Please select or drop a vendor proposal response file.");
+          return;
+        }
+        if (!criteriaReport || !criteriaReport.criteria?.length) {
+          setError("Please extract or load criteria in Step 1 first.");
+          return;
+        }
+
+        setError(null);
+        setEvaluatingResponse(true);
+
+        // STEP 1: Check if any criteria marks were modified and need description adaptation
+        let activeCriteriaReport = criteriaReport;
+        const needsAdaptation = (criteriaReport.criteria || []).some(
+          (c) => c.is_user_modified && !c.is_description_adapted
+        );
+
+        if (needsAdaptation) {
+          try {
+            setAdaptingDescriptions(true);
+            setAdaptationMessage("⚡ Step 1/2: Adapting requirement descriptions with Lite Model (gemini-3.5-flash-lite) to fit your custom marks...");
+            setProgressStep(0);
+
+            const adaptRes = await fetch(`${getApiBase()}/api/criteria/adapt-descriptions`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ criteria_report: criteriaReport, only_modified: true }),
+            });
+
+            if (adaptRes.ok) {
+              const adaptData = await adaptRes.json();
+              if (adaptData.criteria_report) {
+                activeCriteriaReport = adaptData.criteria_report;
+                // UPDATE THE FRONTEND STATE FIRST!
+                setCriteriaReport(activeCriteriaReport);
+                setAdaptationMessage("✅ Requirement descriptions updated on frontend! Now running proposal feedback with Strong Model...");
+                // Brief pause so user visibly observes the description text update on the UI
+                await new Promise((resolve) => setTimeout(resolve, 900));
+              }
+            }
+          } catch (adaptErr) {
+            console.warn("Description adaptation warning:", adaptErr);
+          } finally {
+            setAdaptingDescriptions(false);
+          }
+        }
+
+        // STEP 2: Start the feedback process with the updated descriptions
+        setAdaptationMessage("🔍 Step 2/2: Evaluating proposal with Strong Model (gemini-3.8-flash)...");
+        setProgressStep(1);
+
+        const interval = setInterval(() => {
+          setProgressStep((prev) => (prev < progressSteps.length - 1 ? prev + 1 : prev));
+        }, 3500);
+
+        try {
+          const formData = new FormData();
+          formData.append("response_file", responseFile);
+          formData.append("criteria_data", JSON.stringify(activeCriteriaReport));
+
+          const res = await fetch(`${getApiBase()}/api/feedback`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Server error: HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          setEvaluationResult(data);
+          setActiveTab("feedback");
+        } catch (err) {
+          setError(err.message || "Failed to evaluate proposal response.");
+        } finally {
+          clearInterval(interval);
+          setEvaluatingResponse(false);
+          setAdaptationMessage(null);
+        }
+      };
+
+      const handleLoadSampleResponse = (variant = "medium") => {
+        let title = "Clarion Data Systems (Variant: MEDIUM)";
+        let pricing = "Typical packages €70,000 to €110,000. Firm quote after discovery.";
+        let timeline = "Begin with discovery, follow with pilot, and complete rollout in due time.";
+
+        if (variant === "weak") {
+          title = "QuickDash GmbH (Variant: WEAK)";
+          pricing = "Rough estimate: ~€50,000.";
+          timeline = "We can do it quickly in a few weeks.";
+        } else if (variant === "strong") {
+          title = "Apex Logistics Solutions (Variant: STRONG)";
+          pricing = "Fixed price: €98,500 total inclusive of 1-year 24/7 SLA.";
+          timeline = "3-month pilot at Munich warehouse, 6-month full 6-site rollout guaranteed.";
+        }
+
+        const sampleResp = `# Proposal: Warehouse Visibility Platform for NordFrame Logistics\n**Submitted by:** ${title}\n\n## Technical Solution\n- Real-time inventory dashboard across 6 regional warehouses.\n- Configurable low-stock alerts.\n- Direct integration with existing PostgreSQL database.\n- Role-based access control.\n- Detailed phased migration and onboarding plan.\n\n## Timeline\n${timeline}\n\n## Pricing & SLAs\n${pricing}`;
+        const blob = new Blob([sampleResp], { type: "text/markdown" });
+        setResponseFile(new File([blob], `response_${variant}.md`, { type: "text/markdown" }));
+      };
+
+      const handleLoadInstantFullDemo = async () => {
+        setError(null);
+        setEvaluatingResponse(true);
+        try {
+          const res = await fetch(`${getApiBase()}/api/sample`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          setCriteriaReport(data.criteria_report);
+          setOriginalCriteria(JSON.parse(JSON.stringify(data.criteria_report?.criteria || [])));
+          setEvaluationResult(data);
+          setActiveTab("criteria_slide");
+        } catch (err) {
+          setError("Failed to load demo: " + err.message);
+        } finally {
+          setEvaluatingResponse(false);
+        }
+      };
+
+      const copyJson = () => {
+        const payload = evaluationResult || criteriaReport;
+        if (!payload) return;
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      };
+
+      // -----------------------------------------------------------------
+      // INTERACTIVE PROPOSAL METRICS & DEAL-BREAKER ENGINE
+      // -----------------------------------------------------------------
+      const criteriaList = criteriaReport?.criteria || [];
+      const currentCriterion = criteriaList[currentSlideIndex] || null;
+      const currentScore = currentCriterion ? (currentCriterion.score || currentCriterion.priority_score || 3) : 3;
+
+      const baseScorecard = evaluationResult?.response_feedback?.scorecard || [];
+
+      // Calculate dynamic synchronized scorecard reflecting user's current customized priority marks
+      const syncedScorecard = baseScorecard.map((item) => {
+        const critMatch = criteriaList.find((c) => (c.id || "").trim().toUpperCase() === (item.criterion_id || "").trim().toUpperCase());
+        const currentCritScore = critMatch ? (critMatch.score || critMatch.priority_score || 3) : 3;
+        const markDef = PRIORITY_MARKS[currentCritScore - 1] || PRIORITY_MARKS[2];
+        const isModified = critMatch?.is_user_modified || false;
+
+        return {
+          ...item,
+          priority_score: currentCritScore,
+          priority_level: `${currentCritScore} - ${markDef.title}`,
+          is_user_modified: isModified,
+        };
+      });
+
+      // Interactive Weighted Score Calculation
+      const computeWeightedEvaluation = () => {
+        if (!syncedScorecard.length) return null;
+
+        let totalWeight = 0;
+        let earnedPoints = 0;
+        let dealBreakerFailed = null;
+
+        syncedScorecard.forEach((row) => {
+          const weight = row.priority_score || 3;
+          totalWeight += weight;
+
+          const status = (row.status || "").toLowerCase();
+          let factor = 0;
+          if (status.includes("compliant") && !status.includes("partially") && !status.includes("non")) {
+            factor = 1.0;
+          } else if (status.includes("partially")) {
+            factor = 0.5;
+          } else {
+            factor = 0.0;
+          }
+
+          earnedPoints += weight * factor;
+
+          // Check for deal-breaker failure on score 5 (Must-Have)
+          if (weight === 5 && factor < 1.0 && !dealBreakerFailed) {
+            dealBreakerFailed = {
+              id: row.criterion_id,
+              title: row.requirement_title,
+              status: row.status,
+              notes: row.evaluation_notes,
+            };
+          }
+        });
+
+        const calculatedScore = totalWeight > 0 ? Math.round((earnedPoints / totalWeight) * 100) : 0;
+        
+        let calculatedGrade = "B-";
+        let recommendation = "Shortlist with Clarifications";
+
+        if (dealBreakerFailed) {
+          calculatedGrade = calculatedScore < 50 ? "F" : "D";
+          recommendation = "Reject or Require Critical Clarifications (Must-Have Gap)";
+        } else {
+          if (calculatedScore >= 90) {
+            calculatedGrade = "A";
+            recommendation = "Accept / Top Candidate";
+          } else if (calculatedScore >= 80) {
+            calculatedGrade = "B+";
+            recommendation = "Shortlist (Strong Candidate)";
+          } else if (calculatedScore >= 70) {
+            calculatedGrade = "B-";
+            recommendation = "Shortlist with Minor Clarifications";
+          } else if (calculatedScore >= 60) {
+            calculatedGrade = "C";
+            recommendation = "Marginal Candidate";
+          } else {
+            calculatedGrade = "D";
+            recommendation = "Reject";
+          }
+        }
+
+        return {
+          score: calculatedScore,
+          grade: calculatedGrade,
+          recommendation,
+          dealBreakerFailed,
+        };
+      };
+
+      const weightedResult = computeWeightedEvaluation();
+
+      const getScorecardMatch = (reqId) => {
+        if (!reqId || !syncedScorecard.length) return null;
+        const normalized = reqId.trim().toUpperCase();
+        return syncedScorecard.find((s) => (s.criterion_id || "").trim().toUpperCase() === normalized);
+      };
+
+      const countMustHave = criteriaList.filter((c) => (c.score || c.priority_score) === 5).length;
+      const countHigh = criteriaList.filter((c) => (c.score || c.priority_score) === 4).length;
+      const countMedium = criteriaList.filter((c) => (c.score || c.priority_score) === 3).length;
+      const countLowNice = criteriaList.filter((c) => (c.score || c.priority_score) <= 2).length;
+      const modifiedCount = criteriaList.filter((c) => c.is_user_modified).length;
+
+      const filteredCriteria = criteriaList.filter((c) => {
+        if (scoreFilter === "all") return true;
+        const sc = c.score || c.priority_score || 3;
+        return sc === parseInt(scoreFilter, 10);
+      });
+
+      const getGradeBadge = (grade) => {
+        if (!grade) return "bg-gray-800 text-gray-300 border-gray-700";
+        if (grade.startsWith("A")) return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
+        if (grade.startsWith("B")) return "bg-blue-500/20 text-blue-300 border-blue-500/40";
+        if (grade.startsWith("C")) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
+        return "bg-rose-500/20 text-rose-300 border-rose-500/40";
+      };
+
+      const getComplianceBadge = (statusStr) => {
+        if (!statusStr) return null;
+        const s = statusStr.toLowerCase();
+        if (s.includes("compliant") && !s.includes("partially") && !s.includes("non")) {
+          return (
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              Compliant
+            </span>
+          );
+        }
+        if (s.includes("partially")) {
+          return (
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              Partially Addressed
+            </span>
+          );
+        }
+        return (
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            Non-Compliant
+          </span>
+        );
+      };
+
+      const getGlowClass = (score) => {
+        if (score === 5) return "glow-score-5";
+        if (score === 4) return "glow-score-4";
+        if (score === 3) return "glow-score-3";
+        if (score === 2) return "glow-score-2";
+        return "glow-score-1";
+      };
+
+      return (
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+          {/* Header */}
+          <header class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/25 text-brand-400 text-xs font-semibold uppercase tracking-wider mb-4">
+              <span class="w-2 h-2 rounded-full bg-brand-400 animate-ping"></span>
+              Interactive Criteria & Proposal Evaluation Workbench
+            </div>
+            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-3">
+              RFP Evaluator AI • Dynamic Scoring
+            </h1>
+            <p class="text-gray-400 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
+              Step 1: Extract criteria & adapt priority marks (1–5).
+              <br class="hidden sm:inline" />
+              Step 2: Evaluate the vendor proposal against your customized requirements scorecard.
+            </p>
+          </header>
+
+          {/* Quick Demo Toolbar */}
+          <div class="flex items-center justify-end gap-3 mb-6">
+            <button
+              type="button"
+              onClick={handleLoadSampleCriteria}
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 text-brand-300 border border-brand-500/30 transition-all flex items-center gap-1.5"
+            >
+              <span>⚡ Quick Criteria Demo (Stage 1)</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLoadInstantFullDemo}
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500/20 hover:bg-brand-500/30 text-white border border-brand-500/40 transition-all flex items-center gap-1.5"
+            >
+              <span>🚀 Full Sample Preview (All Steps)</span>
+            </button>
+          </div>
+
+          {/* ============================================================ */}
+          {/* 2-STEP WORKFLOW CONTAINER                                     */}
+          {/* ============================================================ */}
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* STEP 1: RFP & CRITERIA EXTRACTION */}
+            <div class={`glass-panel rounded-2xl p-6 transition-all ${
+              criteriaReport ? "border-brand-500/40 shadow-brand-500/10" : ""
+            }`}>
+              <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-800">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-7 h-7 rounded-full bg-brand-500 text-white font-bold flex items-center justify-center text-xs">
+                    1
+                  </span>
+                  <div>
+                    <h2 class="text-base font-bold text-white">Customer RFP & Criteria</h2>
+                    <p class="text-2xs text-gray-400">Extract requirements and prioritize 1 to 5</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLoadSampleRfpFile}
+                  class="text-xs font-medium text-brand-400 hover:text-brand-300 underline underline-offset-2"
+                >
+                  Load NordFrame RFP
+                </button>
+              </div>
+
+              {/* RFP Dropzone */}
+              <div
+                onClick={() => rfpInputRef.current?.click()}
+                class={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all mb-4 ${
+                  rfpFile
+                    ? "border-brand-500/70 bg-brand-500/10"
+                    : "border-gray-700 hover:border-gray-600 bg-dark-850/60"
+                }`}
+              >
+                <input
+                  ref={rfpInputRef}
+                  type="file"
+                  accept=".md,.txt,.markdown"
+                  class="hidden"
+                  onChange={(e) => setRfpFile(e.target.files[0] || null)}
+                />
+                <div class="w-9 h-9 mx-auto rounded-full bg-brand-500/15 flex items-center justify-center text-brand-400 mb-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <h3 class="text-xs font-semibold text-white mb-1">Upload Customer RFP (.md)</h3>
+                {rfpFile ? (
+                  <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-brand-500/25 text-brand-200 text-xs font-mono">
+                    <span>{rfpFile.name}</span>
+                    <span class="text-gray-400 font-sans">({(rfpFile.size / 1024).toFixed(1)} KB)</span>
+                  </div>
+                ) : (
+                  <p class="text-xs text-gray-400">Click or drag & drop RFP markdown file</p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={extractingCriteria || !rfpFile}
+                onClick={handleExtractCriteria}
+                class={`w-full py-2.5 px-4 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 ${
+                  extractingCriteria || !rfpFile
+                    ? "bg-dark-700 text-gray-500 cursor-not-allowed border border-gray-700"
+                    : "bg-brand-500 hover:bg-brand-600 text-white shadow-brand-500/20 active:scale-98"
+                }`}
+              >
+                {extractingCriteria ? (
+                  <>
+                    <svg class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                    <span>Extracting Criteria with Gemini...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>1. Extract RFP Criteria</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </>
+                )}
+              </button>
+
+              {criteriaReport && (
+                <div class="mt-3 p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-xs flex items-center justify-between text-emerald-300">
+                  <span><strong>{criteriaList.length} criteria ready</strong>. Click marks 1–5 below to adapt.</span>
+                  {modifiedCount > 0 && (
+                    <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">
+                      {modifiedCount} Adapted
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* STEP 2: VENDOR RESPONSE EVALUATION */}
+            <div class={`glass-panel rounded-2xl p-6 transition-all ${
+              !criteriaReport ? "opacity-60 pointer-events-none" : "border-indigo-500/40 shadow-indigo-500/10"
+            }`}>
+              <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-800">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-7 h-7 rounded-full bg-indigo-500 text-white font-bold flex items-center justify-center text-xs">
+                    2
+                  </span>
+                  <div>
+                    <h2 class="text-base font-bold text-white">Vendor Response Evaluation</h2>
+                    <p class="text-2xs text-gray-400">Evaluate against your tailored criteria</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 text-2xs">
+                  <span class="text-gray-400">Samples:</span>
+                  <button type="button" onClick={() => handleLoadSampleResponse("medium")} class="text-indigo-300 hover:underline">Medium</button>
+                  <span class="text-gray-600">•</span>
+                  <button type="button" onClick={() => handleLoadSampleResponse("weak")} class="text-indigo-300 hover:underline">Weak</button>
+                  <span class="text-gray-600">•</span>
+                  <button type="button" onClick={() => handleLoadSampleResponse("strong")} class="text-indigo-300 hover:underline">Strong</button>
+                </div>
+              </div>
+
+              {/* Response Dropzone */}
+              <div
+                onClick={() => responseInputRef.current?.click()}
+                class={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all mb-4 ${
+                  responseFile
+                    ? "border-indigo-500/70 bg-indigo-500/10"
+                    : "border-gray-700 hover:border-gray-600 bg-dark-850/60"
+                }`}
+              >
+                <input
+                  ref={responseInputRef}
+                  type="file"
+                  accept=".md,.txt,.markdown"
+                  class="hidden"
+                  onChange={(e) => setResponseFile(e.target.files[0] || null)}
+                />
+                <div class="w-9 h-9 mx-auto rounded-full bg-indigo-500/15 flex items-center justify-center text-indigo-400 mb-2">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                </div>
+                <h3 class="text-xs font-semibold text-white mb-1">Upload Vendor Proposal (.md)</h3>
+                {responseFile ? (
+                  <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-indigo-500/25 text-indigo-200 text-xs font-mono">
+                    <span>{responseFile.name}</span>
+                    <span class="text-gray-400 font-sans">({(responseFile.size / 1024).toFixed(1)} KB)</span>
+                  </div>
+                ) : (
+                  <p class="text-xs text-gray-400">Click or drag & drop proposal response</p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={evaluatingResponse || !responseFile || !criteriaReport}
+                onClick={handleEvaluateResponse}
+                class={`w-full py-2.5 px-4 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 ${
+                  evaluatingResponse || !responseFile || !criteriaReport
+                    ? "bg-dark-700 text-gray-500 cursor-not-allowed border border-gray-700"
+                    : "bg-gradient-to-r from-indigo-500 to-brand-600 hover:from-indigo-600 hover:to-brand-700 text-white shadow-indigo-500/25 active:scale-98"
+                }`}
+              >
+                {evaluatingResponse ? (
+                  <>
+                    <svg class="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                    <span>Evaluating Proposal Against Custom Scorecard...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>2. Run Feedback & Correction</span>
+                    {modifiedCount > 0 && (
+                      <span class="px-2 py-0.5 rounded-full bg-white/20 text-white font-mono text-2xs">
+                        {modifiedCount} Custom Weights
+                      </span>
+                    )}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </>
+                )}
+              </button>
+
+              {!criteriaReport && (
+                <p class="text-2xs text-gray-400 text-center mt-2.5">
+                  ⚠️ Complete Step 1 to extract or customize criteria first.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Error Banner */}
+          {error && (
+            <div class="mb-6 p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-sm flex items-start gap-3">
+              <svg class="w-5 h-5 text-rose-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Loading Progress State */}
+          {evaluatingResponse && (
+            <div class="glass-panel rounded-2xl p-8 mb-8 text-center animate-fade-in">
+              <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-400 rounded-full animate-spin mx-auto mb-4"></div>
+              <h3 class="text-base font-bold text-white mb-2">Executing Level 2 AI Pipeline</h3>
+              {adaptationMessage ? (
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/25 border border-indigo-500/40 text-indigo-200 text-xs font-mono mb-2">
+                  <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+                  <span>{adaptationMessage}</span>
+                </div>
+              ) : (
+                <p class="text-sm text-indigo-300 font-mono transition-all max-w-md mx-auto">
+                  {progressSteps[progressStep]}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* CRITERIA & PROPOSAL WORKBENCH                                 */}
+          {/* ============================================================ */}
+          {criteriaReport && (
+            <div class="glass-panel rounded-2xl p-6 md:p-8 shadow-2xl">
+              {/* Top Overview & Synchronized Metrics */}
+              <div class="flex flex-wrap items-center justify-between gap-4 pb-6 mb-6 border-b border-gray-800">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs uppercase font-mono text-gray-400 tracking-wider">Evaluation Scorecard</span>
+                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/20 text-brand-300 font-mono font-bold">
+                      {criteriaList.length} Total Criteria
+                    </span>
+                    {modifiedCount > 0 && (
+                      <span class="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                        ✏️ {modifiedCount} Custom Adapted
+                      </span>
+                    )}
+                  </div>
+                  <h2 class="text-xl sm:text-2xl font-black text-white">
+                    {criteriaReport.project_title || "RFP Evaluation Workbench"}
+                  </h2>
+                  {criteriaReport.client_name && (
+                    <p class="text-xs text-brand-400 font-semibold mt-0.5">
+                      Client: {criteriaReport.client_name} • {criteriaReport.industry || "Enterprise"}
+                    </p>
+                  )}
+                </div>
+
+                {/* Live Synchronized Proposal Score (If Evaluated) */}
+                {weightedResult ? (
+                  <div class="flex items-center gap-3">
+                    <div class="px-4 py-2 rounded-xl bg-dark-850 border border-gray-700 text-center">
+                      <span class="text-3xs uppercase text-gray-400 block font-mono">Weighted Score</span>
+                      <span class="text-xl font-black text-white">{weightedResult.score}/100</span>
+                      {modifiedCount > 0 && (
+                        <span class="text-3xs text-amber-400 font-mono block">Custom Weighted</span>
+                      )}
+                    </div>
+                    <div class={`px-4 py-2 rounded-xl border text-center ${getGradeBadge(weightedResult.grade)}`}>
+                      <span class="text-3xs uppercase opacity-75 block font-mono">Grade</span>
+                      <span class="text-xl font-black">{weightedResult.grade}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="px-3 py-1.5 rounded-lg bg-dark-850 border border-gray-800 text-center">
+                      <span class="text-3xs uppercase text-gray-400 block font-mono">Must-Have (5)</span>
+                      <span class="text-sm font-bold text-rose-400">{countMustHave}</span>
+                    </div>
+                    <div class="px-3 py-1.5 rounded-lg bg-dark-850 border border-gray-800 text-center">
+                      <span class="text-3xs uppercase text-gray-400 block font-mono">High (4)</span>
+                      <span class="text-sm font-bold text-orange-400">{countHigh}</span>
+                    </div>
+                    <div class="px-3 py-1.5 rounded-lg bg-dark-850 border border-gray-800 text-center">
+                      <span class="text-3xs uppercase text-gray-400 block font-mono">Medium (3)</span>
+                      <span class="text-sm font-bold text-amber-400">{countMedium}</span>
+                    </div>
+                    <div class="px-3 py-1.5 rounded-lg bg-dark-850 border border-gray-800 text-center">
+                      <span class="text-3xs uppercase text-gray-400 block font-mono">Low/Nice (1-2)</span>
+                      <span class="text-sm font-bold text-blue-400">{countLowNice}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Deal-Breaker Failure Alert (If User elevated a failed requirement to Must-Have 5) */}
+              {weightedResult?.dealBreakerFailed && (
+                <div class="mb-6 p-4 rounded-xl bg-rose-950/40 border-2 border-rose-500/60 text-rose-200 text-sm flex items-start gap-3 shadow-lg shadow-rose-950/50">
+                  <div class="p-2 rounded-lg bg-rose-500/20 text-rose-400 font-bold shrink-0 mt-0.5">
+                    🚨 MUST-HAVE DEAL-BREAKER
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-white text-sm">
+                      Proposal Fails Mandatory Must-Have Requirement [{weightedResult.dealBreakerFailed.id} - {weightedResult.dealBreakerFailed.title}]
+                    </h4>
+                    <p class="text-xs text-rose-200 mt-1 leading-relaxed">
+                      This requirement was designated with <strong>Mark 5 (Must-Have)</strong>, but the proposal is <strong>{weightedResult.dealBreakerFailed.status}</strong>! Recommendation: <strong>{weightedResult.recommendation}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Sticky Re-evaluation Notification Bar if modified after evaluation */}
+              {evaluationResult && modifiedCount > 0 && (
+                <div class="mb-6 p-3.5 rounded-xl bg-brand-500/15 border border-brand-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div class="flex items-center gap-2 text-brand-300">
+                    <span class="w-2 h-2 rounded-full bg-brand-400 animate-pulse"></span>
+                    <span>
+                      <strong>Criteria priorities have been customized ({modifiedCount} changes).</strong> Scorecard & weights above updated live!
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={evaluatingResponse || !responseFile}
+                    onClick={handleEvaluateResponse}
+                    class="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-bold transition-all flex items-center gap-1.5 shadow"
+                  >
+                    <span>⚡ Re-Run Gemini Evaluation</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Navigation Tabs */}
+              <div class="flex items-center gap-2 overflow-x-auto pb-4 mb-6 border-b border-gray-800 custom-scrollbar">
+                {/* Tab 1: Interactive Criteria Slide */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("criteria_slide")}
+                  class={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shrink-0 ${
+                    activeTab === "criteria_slide"
+                      ? "bg-brand-500 text-white shadow-lg shadow-brand-500/30"
+                      : "bg-dark-800/60 text-gray-300 hover:bg-dark-800 hover:text-white border border-gray-800"
+                  }`}
+                >
+                  <span>🎴 Criteria Slide (Interactive 1–5 Marks)</span>
+                  <span class={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                    activeTab === "criteria_slide" ? "bg-white/20 text-white" : "bg-dark-700 text-gray-400"
+                  }`}>
+                    {criteriaList.length}
+                  </span>
+                </button>
+
+                {/* Tab 2: Proposal Feedback */}
+                <button
+                  type="button"
+                  disabled={!evaluationResult}
+                  onClick={() => setActiveTab("feedback")}
+                  class={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shrink-0 ${
+                    !evaluationResult
+                      ? "opacity-50 cursor-not-allowed bg-dark-900 text-gray-500 border border-gray-800"
+                      : activeTab === "feedback"
+                      ? "bg-brand-500 text-white shadow-lg shadow-brand-500/30"
+                      : "bg-dark-800/60 text-gray-300 hover:bg-dark-800 hover:text-white border border-gray-800"
+                  }`}
+                >
+                  <span>📊 Proposal Feedback & Scorecard</span>
+                  {evaluationResult && (
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                      {syncedScorecard.length} Evaluated
+                    </span>
+                  )}
+                </button>
+
+                {/* Tab 3: Corrected Proposal */}
+                <button
+                  type="button"
+                  disabled={!evaluationResult}
+                  onClick={() => setActiveTab("correction")}
+                  class={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shrink-0 ${
+                    !evaluationResult
+                      ? "opacity-50 cursor-not-allowed bg-dark-900 text-gray-500 border border-gray-800"
+                      : activeTab === "correction"
+                      ? "bg-brand-500 text-white shadow-lg shadow-brand-500/30"
+                      : "bg-dark-800/60 text-gray-300 hover:bg-dark-800 hover:text-white border border-gray-800"
+                  }`}
+                >
+                  <span>✍️ Corrected Proposal</span>
+                </button>
+
+                {/* Tab 4: Raw JSON */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("raw_json")}
+                  class={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shrink-0 ${
+                    activeTab === "raw_json"
+                      ? "bg-brand-500 text-white shadow-lg shadow-brand-500/30"
+                      : "bg-dark-800/60 text-gray-300 hover:bg-dark-800 hover:text-white border border-gray-800"
+                  }`}
+                >
+                  <span>⚙️ Raw JSON</span>
+                </button>
+              </div>
+
+              {/* ============================================================ */}
+              {/* TAB 1: INTERACTIVE CRITERIA SLIDE                            */}
+              {/* ============================================================ */}
+              {activeTab === "criteria_slide" && (
+                <div class="space-y-6">
+                  {/* Controls & Mode Bar */}
+                  <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-dark-900/60 border border-gray-800">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs uppercase font-mono text-gray-400 mr-1">Display Mode:</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("slide")}
+                        class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          viewMode === "slide" ? "bg-brand-500 text-white shadow" : "bg-dark-800 text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Slide Carousel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("grid")}
+                        class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          viewMode === "grid" ? "bg-brand-500 text-white shadow" : "bg-dark-800 text-gray-400 hover:text-gray-200"
+                        }`}
+                      >
+                        Grid View (All {criteriaList.length})
+                      </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <div class="text-xs text-brand-300 font-semibold flex items-center gap-1.5">
+                        <span>💡 Click any mark (1–5) to adapt priority weights!</span>
+                      </div>
+                      {modifiedCount > 0 && (
+                        <button
+                          type="button"
+                          disabled={adaptingDescriptions || evaluatingResponse}
+                          onClick={handleAdaptDescriptionsDirectly}
+                          class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-all flex items-center gap-1 shadow active:scale-95"
+                          title="Regenerate requirement descriptions with Lite Model immediately"
+                        >
+                          {adaptingDescriptions ? (
+                            <>
+                              <svg class="w-3.5 h-3.5 animate-spin text-indigo-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                              <span>Adapting (Lite Model)...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>⚡ Adapt Text Now (Lite Model)</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {viewMode === "slide" && (
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAutoPlay(!autoPlay)}
+                          class={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            autoPlay ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-dark-800 text-gray-400"
+                          }`}
+                        >
+                          {autoPlay ? "⏸️ Pause" : "▶️ Auto-Play"}
+                        </button>
+                        <span class="text-xs text-gray-500 font-mono hidden sm:inline">Use ← → keys</span>
+                      </div>
+                    )}
+
+                    {viewMode === "grid" && (
+                      <div class="flex items-center gap-1.5 overflow-x-auto">
+                        <span class="text-xs text-gray-400 font-mono mr-1">Filter Mark:</span>
+                        {["all", "5", "4", "3", "2", "1"].map((lvl) => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => setScoreFilter(lvl)}
+                            class={`px-2 py-1 rounded text-xs font-bold transition-all ${
+                              scoreFilter === lvl ? "bg-brand-500 text-white" : "bg-dark-800 text-gray-400"
+                            }`}
+                          >
+                            {lvl === "all" ? "All" : `Mark ${lvl}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SLIDE VIEW */}
+                  {viewMode === "slide" && currentCriterion && (
+                    <div class="space-y-6">
+                      {/* Quick Jump Buttons */}
+                      <div class="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                        {criteriaList.map((crit, idx) => {
+                          const sc = crit.score || crit.priority_score || 3;
+                          const isCurrent = idx === currentSlideIndex;
+                          return (
+                            <button
+                              key={crit.id || idx}
+                              type="button"
+                              onClick={() => setCurrentSlideIndex(idx)}
+                              class={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                                isCurrent
+                                  ? "bg-brand-500 text-white shadow-md scale-105"
+                                  : "bg-dark-850 hover:bg-dark-800 text-gray-300 border border-gray-800"
+                              }`}
+                            >
+                              <span>{crit.id}</span>
+                              <span class={`w-4 h-4 rounded-full text-2xs flex items-center justify-center font-sans font-bold ${
+                                sc === 5 ? "bg-rose-500 text-white" :
+                                sc === 4 ? "bg-orange-500 text-white" :
+                                sc === 3 ? "bg-amber-500 text-gray-950" : "bg-blue-500 text-white"
+                              }`}>
+                                {sc}
+                              </span>
+                              {crit.is_user_modified && <span class="text-amber-400 font-bold">•</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Main Slide Card */}
+                      <div class={`glass-card rounded-2xl p-6 sm:p-8 transition-all duration-300 border ${getGlowClass(currentScore)}`}>
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-800">
+                          <div class="flex items-center gap-2.5">
+                            <span class="px-3 py-1 rounded-lg bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-mono font-bold">
+                              {currentCriterion.id}
+                            </span>
+                            <span class="px-3 py-1 rounded-lg bg-dark-700 text-gray-300 text-xs font-semibold">
+                              {currentCriterion.category || "Requirement"}
+                            </span>
+                            {currentCriterion.is_user_modified && (
+                              <span class="px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold">
+                                ✏️ User Customized
+                              </span>
+                            )}
+                          </div>
+
+                          <div class="flex items-center gap-3">
+                            <span class="text-xs text-gray-400 font-mono">
+                              Criterion {currentSlideIndex + 1} of {criteriaList.length}
+                            </span>
+                            <div class="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setCurrentSlideIndex((prev) => (prev - 1 + criteriaList.length) % criteriaList.length)}
+                                class="p-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-200 border border-gray-700"
+                              >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCurrentSlideIndex((prev) => (prev + 1) % criteriaList.length)}
+                                class="p-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-200 border border-gray-700"
+                              >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Title */}
+                        <h2 class="text-2xl sm:text-3xl font-black text-white mb-6 leading-snug">
+                          {currentCriterion.title}
+                        </h2>
+
+                        {/* 5-MARK INTERACTIVE PRIORITY GAUGE */}
+                        <div class="my-8 p-6 rounded-2xl bg-dark-900/80 border border-gray-800 shadow-inner">
+                          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                              <span class="w-2 h-2 rounded-full bg-brand-400"></span>
+                              Interactive Priority Scale (Click Mark to Adapt)
+                            </span>
+                            <span class={`text-xs font-bold px-3 py-1 rounded-full border ${
+                              PRIORITY_MARKS[currentScore - 1]?.badgeColor || "bg-brand-500/20"
+                            }`}>
+                              ★ Active Priority: Mark {currentScore} / 5 ({PRIORITY_MARKS[currentScore - 1]?.title})
+                            </span>
+                          </div>
+
+                          <div class="relative pt-6 pb-4">
+                            <div class="absolute top-1/2 left-0 w-full h-2 -translate-y-1/2 bg-dark-700 rounded-full"></div>
+                            <div
+                              class={`absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full bg-gradient-to-r ${
+                                PRIORITY_MARKS[currentScore - 1]?.trackColor || "from-brand-500 to-indigo-500"
+                              } transition-all duration-300`}
+                              style={{ width: `${((currentScore - 1) / 4) * 100}%` }}
+                            ></div>
+
+                            <div class="relative flex justify-between items-center">
+                              {PRIORITY_MARKS.map((m) => {
+                                const isSelected = m.mark === currentScore;
+                                const isPassed = m.mark <= currentScore;
+                                return (
+                                  <div
+                                    key={m.mark}
+                                    class="flex flex-col items-center group cursor-pointer select-none"
+                                    onClick={() => handleUpdatePriority(currentCriterion.id, m.mark)}
+                                    title={`Click to set priority to Mark ${m.mark} (${m.title})`}
+                                  >
+                                    <div
+                                      class={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-200 z-10 ${
+                                        isSelected
+                                          ? `${m.activeColor} text-white ring-4 ${m.ringColor} ring-opacity-60 scale-125 shadow-2xl animate-pulse-slow`
+                                          : isPassed
+                                          ? "bg-dark-600 text-gray-200 border-2 border-brand-400/50 hover:scale-110 hover:border-brand-400"
+                                          : "bg-dark-800 text-gray-500 border-2 border-gray-700 hover:scale-110 hover:border-gray-500"
+                                      }`}
+                                    >
+                                      {m.mark}
+                                    </div>
+                                    <span class={`mt-3 text-xs font-semibold text-center ${
+                                      isSelected ? "text-white font-bold" : "text-gray-400 group-hover:text-gray-200"
+                                    }`}>
+                                      Mark {m.mark}
+                                    </span>
+                                    <span class="text-2xs text-gray-400 hidden sm:block">
+                                      {m.title}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Quick selector buttons */}
+                          <div class="mt-4 pt-4 border-t border-gray-800 flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-xs text-gray-400 font-mono">Quick Priority:</span>
+                            <div class="flex items-center gap-1.5">
+                              {PRIORITY_MARKS.map((m) => (
+                                <button
+                                  key={m.mark}
+                                  type="button"
+                                  onClick={() => handleUpdatePriority(currentCriterion.id, m.mark)}
+                                  class={`px-2.5 py-1 rounded text-xs font-bold transition-all border ${
+                                    m.mark === currentScore
+                                      ? m.pillActive
+                                      : "bg-dark-800 text-gray-400 hover:text-white border-gray-700"
+                                  }`}
+                                >
+                                  {m.mark} • {m.tag}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Description & Strategic Rationale */}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                          <div class="p-5 rounded-xl bg-dark-850/70 border border-gray-800">
+                            <div class="flex flex-wrap items-center justify-between gap-1 mb-2">
+                              <h3 class="text-xs uppercase font-bold text-gray-400 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Requirement Description
+                              </h3>
+                              {currentCriterion.is_description_adapted && (
+                                <span class="text-2xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  ⚡ Text Adapted to Mark {currentScore} (Lite Model)
+                                </span>
+                              )}
+                              {currentCriterion.is_user_modified && !currentCriterion.is_description_adapted && (
+                                <span class="text-2xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                                  ✏️ Mark {currentScore} (Will adapt text on Run Feedback)
+                                </span>
+                              )}
+                            </div>
+                            <p class="text-sm text-gray-200 leading-relaxed">
+                              {currentCriterion.description}
+                            </p>
+                          </div>
+
+                          <div class="p-5 rounded-xl bg-dark-850/70 border border-gray-800">
+                            <h3 class="text-xs uppercase font-bold text-amber-400 mb-2 flex items-center gap-1.5">
+                              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                              Strategic Scoring Rationale
+                            </h3>
+                            <p class="text-sm text-gray-300 leading-relaxed italic">
+                              "{currentCriterion.rationale}"
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Proposal Compliance Cross-Check */}
+                        {evaluationResult && (
+                          <div class="p-5 rounded-xl bg-dark-900 border border-gray-800">
+                            <div class="flex items-center justify-between mb-2">
+                              <h3 class="text-xs uppercase font-bold text-gray-300">Proposal Compliance Result</h3>
+                              {getScorecardMatch(currentCriterion.id) && getComplianceBadge(getScorecardMatch(currentCriterion.id).status)}
+                            </div>
+                            {getScorecardMatch(currentCriterion.id) ? (
+                              <p class="text-xs text-gray-300 leading-relaxed">
+                                {getScorecardMatch(currentCriterion.id).evaluation_notes}
+                              </p>
+                            ) : (
+                              <p class="text-xs text-gray-500">Evaluated against custom criteria.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GRID VIEW */}
+                  {viewMode === "grid" && (
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {filteredCriteria.map((item, idx) => {
+                        const sc = item.score || item.priority_score || 3;
+                        const match = getScorecardMatch(item.id);
+                        return (
+                          <div
+                            key={item.id || idx}
+                            class={`glass-card rounded-xl p-5 border flex flex-col justify-between transition-all hover:-translate-y-1 ${getGlowClass(sc)}`}
+                          >
+                            <div>
+                              <div class="flex items-center justify-between gap-2 mb-3">
+                                <span class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-brand-500/20 text-brand-300">
+                                  {item.id}
+                                </span>
+                                <span class={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                                  PRIORITY_MARKS[sc - 1]?.badgeColor || "bg-gray-700"
+                                }`}>
+                                  Mark {sc} • {PRIORITY_MARKS[sc - 1]?.title}
+                                </span>
+                              </div>
+
+                              <h3 class="text-base font-bold text-white mb-2 line-clamp-2">
+                                {item.title}
+                              </h3>
+
+                              {/* Interactive Mini 5-Mark Selector */}
+                              <div class="my-3 p-2.5 rounded-lg bg-dark-900 border border-gray-800">
+                                <div class="text-3xs uppercase font-mono text-gray-400 mb-1.5 flex justify-between">
+                                  <span>Priority: Mark {sc}/5</span>
+                                  {item.is_user_modified && <span class="text-amber-400 font-bold">Custom</span>}
+                                </div>
+                                <div class="flex items-center gap-1">
+                                  {[1, 2, 3, 4, 5].map((m) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => handleUpdatePriority(item.id, m)}
+                                      class={`flex-1 py-1 rounded text-2xs font-bold transition-all ${
+                                        m === sc
+                                          ? sc === 5 ? "bg-rose-500 text-white shadow" :
+                                            sc === 4 ? "bg-orange-500 text-white shadow" :
+                                            sc === 3 ? "bg-amber-500 text-gray-950 shadow" : "bg-blue-500 text-white shadow"
+                                          : "bg-dark-800 text-gray-500 hover:text-white"
+                                      }`}
+                                      title={`Set priority to Mark ${m}`}
+                                    >
+                                      {m}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <p class="text-xs text-gray-300 mb-2 line-clamp-3">
+                                {item.description}
+                              </p>
+                              {item.is_description_adapted && (
+                                <div class="mb-2">
+                                  <span class="inline-block text-3xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    ⚡ Adapted to Mark {sc} (Lite Model)
+                                  </span>
+                                </div>
+                              )}
+                              {item.is_user_modified && !item.is_description_adapted && (
+                                <div class="mb-2">
+                                  <span class="inline-block text-3xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    ✏️ Modified (Will adapt text on Run Feedback)
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div class="pt-3 border-t border-gray-800 flex items-center justify-between">
+                              <span class="text-2xs text-gray-400 font-mono">{item.category}</span>
+                              {match && getComplianceBadge(match.status)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ============================================================ */}
+              {/* TAB 2: PROPOSAL FEEDBACK (INTERACTIVE SCORECARD)              */}
+              {/* ============================================================ */}
+              {activeTab === "feedback" && evaluationResult && (
+                <div class="space-y-6">
+                  {/* Executive Summary */}
+                  {evaluationResult.response_feedback?.executive_summary && (
+                    <div class="p-5 rounded-xl bg-dark-850 border border-gray-800">
+                      <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs uppercase font-bold text-gray-400">Executive Summary</h4>
+                        <span class="text-xs text-brand-300 font-mono">
+                          Vendor: {evaluationResult.response_feedback.vendor_name || "Vendor Proposal"}
+                        </span>
+                      </div>
+                      <p class="text-sm text-gray-200 leading-relaxed">
+                        {evaluationResult.response_feedback.executive_summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Strengths & Weaknesses */}
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="p-5 rounded-xl bg-emerald-950/25 border border-emerald-500/25">
+                      <h4 class="text-sm font-bold text-emerald-300 flex items-center gap-2 mb-3">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        Proposal Strengths
+                      </h4>
+                      <ul class="space-y-2 text-xs text-emerald-200/90">
+                        {(evaluationResult.response_feedback?.strengths || []).map((s, idx) => (
+                          <li key={idx} class="flex items-start gap-2">
+                            <span class="text-emerald-400 font-bold">•</span>
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div class="p-5 rounded-xl bg-rose-950/25 border border-rose-500/25">
+                      <h4 class="text-sm font-bold text-rose-300 flex items-center gap-2 mb-3">
+                        <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Weaknesses & Omissions
+                      </h4>
+                      <ul class="space-y-2 text-xs text-rose-200/90">
+                        {(evaluationResult.response_feedback?.weaknesses_and_gaps || []).map((w, idx) => (
+                          <li key={idx} class="flex items-start gap-2">
+                            <span class="text-rose-400 font-bold">•</span>
+                            <span>{w}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* INTERACTIVE SCORECARD TABLE: Direct 1-5 Mark Selector on each row! */}
+                  <div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div>
+                        <h4 class="text-sm font-bold text-white">
+                          Interactive Criteria-by-Criteria Scorecard
+                        </h4>
+                        <p class="text-2xs text-gray-400">
+                          Click the priority marks (1–5) in any row to test how priority adjustments impact the proposal score in real-time.
+                        </p>
+                      </div>
+                      {modifiedCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleEvaluateResponse}
+                          class="px-3 py-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow flex items-center gap-1.5"
+                        >
+                          <span>⚡ Re-Run Gemini with Custom Priorities</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-gray-800">
+                      <table class="w-full text-left text-xs">
+                        <thead class="bg-dark-850 text-gray-400 uppercase font-mono border-b border-gray-800">
+                          <tr>
+                            <th class="py-3 px-4">ID</th>
+                            <th class="py-3 px-4">Requirement</th>
+                            <th class="py-3 px-4">Priority (1–5 Selector)</th>
+                            <th class="py-3 px-4">Status</th>
+                            <th class="py-3 px-4">Evaluation Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-800 bg-dark-900/50">
+                          {syncedScorecard.map((item, idx) => {
+                            const sc = item.priority_score || 3;
+                            return (
+                              <tr key={idx} class="hover:bg-dark-800/40 transition-colors">
+                                <td class="py-3 px-4 font-mono font-bold text-brand-400 whitespace-nowrap">
+                                  {item.criterion_id}
+                                </td>
+                                <td class="py-3 px-4 font-semibold text-gray-200">
+                                  {item.requirement_title}
+                                </td>
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                  <div class="flex items-center gap-1">
+                                    {[1, 2, 3, 4, 5].map((m) => (
+                                      <button
+                                        key={m}
+                                        type="button"
+                                        onClick={() => handleUpdatePriority(item.criterion_id, m)}
+                                        class={`w-6 h-6 rounded text-2xs font-bold transition-all ${
+                                          m === sc
+                                            ? sc === 5 ? "bg-rose-500 text-white shadow" :
+                                              sc === 4 ? "bg-orange-500 text-white shadow" :
+                                              sc === 3 ? "bg-amber-500 text-gray-950 shadow" : "bg-blue-500 text-white shadow"
+                                            : "bg-dark-800 text-gray-500 hover:text-white border border-gray-700"
+                                        }`}
+                                        title={`Set priority for ${item.criterion_id} to Mark ${m}`}
+                                      >
+                                        {m}
+                                      </button>
+                                    ))}
+                                    {item.is_user_modified && (
+                                      <span class="text-amber-400 font-bold ml-1 text-2xs">Custom</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                  {getComplianceBadge(item.status)}
+                                </td>
+                                <td class="py-3 px-4 text-gray-300 leading-relaxed max-w-md">
+                                  {item.evaluation_notes}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ============================================================ */}
+              {/* TAB 3: CORRECTED PROPOSAL                                    */}
+              {/* ============================================================ */}
+              {activeTab === "correction" && evaluationResult && (
+                <div class="space-y-6">
+                  {/* Actionable Recommendations */}
+                  <div class="p-5 rounded-xl bg-dark-850 border border-gray-800">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                      <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Actionable Recommendations to Address Custom Priorities
+                    </h4>
+                    <ul class="space-y-2.5 text-xs text-gray-300">
+                      {(evaluationResult.response_correction?.actionable_recommendations || []).map((rec, idx) => (
+                        <li key={idx} class="flex items-start gap-2.5 bg-dark-900/60 p-3 rounded-lg border border-gray-800">
+                          <span class="w-5 h-5 rounded-full bg-brand-500/20 text-brand-300 flex items-center justify-center shrink-0 text-xs font-bold font-mono">
+                            {idx + 1}
+                          </span>
+                          <span class="pt-0.5">{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Requirements Revisions / Corrected Proposal Details */}
+                  {evaluationResult.response_correction?.corrected_proposal && (
+                    <div class="p-6 rounded-xl glass-card border border-gray-800">
+                      <div class="mb-4 pb-3 border-b border-gray-800">
+                        <span class="text-xs uppercase tracking-wider text-brand-400 font-semibold font-mono">Enhanced Proposal Revision</span>
+                        <h3 class="text-xl font-bold text-white mt-1">
+                          {evaluationResult.response_correction.corrected_proposal.title || "Corrected Proposal Document"}
+                        </h3>
+                      </div>
+
+                      {/* Dynamic Requirements Revisions matching criteria priorities */}
+                      {Array.isArray(evaluationResult.response_correction.corrected_proposal.requirements_revisions) && evaluationResult.response_correction.corrected_proposal.requirements_revisions.length > 0 ? (
+                        <div class="space-y-4 mb-6">
+                          <h4 class="text-xs uppercase font-bold text-gray-400 font-mono">Specific Requirement Revisions (Ordered by Priority):</h4>
+                          <div class="grid grid-cols-1 gap-3">
+                            {evaluationResult.response_correction.corrected_proposal.requirements_revisions.map((rev, idx) => (
+                              <div key={idx} class="p-4 rounded-xl bg-dark-850/80 border border-gray-800">
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                  <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 font-mono font-bold text-xs">
+                                      {rev.criterion_id}
+                                    </span>
+                                    <h5 class="text-xs font-bold text-white">{rev.requirement_title}</h5>
+                                  </div>
+                                  <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300">
+                                    Priority {rev.priority_score || "Custom"}
+                                  </span>
+                                </div>
+                                {rev.deficiency_resolved && (
+                                  <p class="text-2xs text-rose-300/80 italic mb-2">
+                                    Original gap: {rev.deficiency_resolved}
+                                  </p>
+                                )}
+                                <p class="text-xs text-gray-200 bg-dark-900/60 p-3 rounded-lg border border-gray-800/80">
+                                  {rev.corrected_solution_text}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs mb-6">
+                          {evaluationResult.response_correction.corrected_proposal.database_integration && (
+                            <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
+                              <span class="text-brand-400 block font-semibold mb-1">Database Integration (REQ-03)</span>
+                              <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.database_integration}</p>
+                            </div>
+                          )}
+                          {evaluationResult.response_correction.corrected_proposal.role_based_access_control && (
+                            <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
+                              <span class="text-brand-400 block font-semibold mb-1">Role-Based Access Control (REQ-04)</span>
+                              <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.role_based_access_control}</p>
+                            </div>
+                          )}
+                          {evaluationResult.response_correction.corrected_proposal.low_stock_alerts && (
+                            <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
+                              <span class="text-brand-400 block font-semibold mb-1">Low-Stock Alerts (REQ-02)</span>
+                              <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.low_stock_alerts}</p>
+                            </div>
+                          )}
+                          {evaluationResult.response_correction.corrected_proposal.timeline_and_onboarding && (
+                            <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
+                              <span class="text-brand-400 block font-semibold mb-1">Timeline & Rollout (REQ-05)</span>
+                              <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.timeline_and_onboarding}</p>
+                            </div>
+                          )}
+                          {evaluationResult.response_correction.corrected_proposal.support_and_slas && (
+                            <div class="p-3.5 rounded-lg bg-dark-850/70 border border-gray-800">
+                              <span class="text-brand-400 block font-semibold mb-1">Support, SLAs & Maintenance (REQ-06)</span>
+                              <p class="text-gray-200">{evaluationResult.response_correction.corrected_proposal.support_and_slas}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Full Proposal Markdown */}
+                      {evaluationResult.response_correction.corrected_proposal.full_proposal_markdown && (
+                        <div class="mt-4 pt-4 border-t border-gray-800">
+                          <h4 class="text-xs uppercase font-bold text-gray-400 mb-2 font-mono">Full Corrected Markdown Document</h4>
+                          <pre class="p-4 rounded-xl bg-dark-950 font-mono text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap border border-gray-800 max-h-96 custom-scrollbar">
+                            {evaluationResult.response_correction.corrected_proposal.full_proposal_markdown}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ============================================================ */}
+              {/* TAB 4: RAW JSON                                              */}
+              {/* ============================================================ */}
+              {activeTab === "raw_json" && (
+                <div>
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs text-gray-400 font-mono">Current JSON Payload</span>
+                    <button
+                      type="button"
+                      onClick={copyJson}
+                      class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-200 border border-gray-700 flex items-center gap-1.5"
+                    >
+                      {copied ? "✓ Copied!" : "Copy JSON"}
+                    </button>
+                  </div>
+                  <pre class="p-4 rounded-xl bg-dark-950 font-mono text-xs text-gray-300 overflow-x-auto border border-gray-800 max-h-[600px] custom-scrollbar">
+                    {JSON.stringify(evaluationResult || criteriaReport, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+</body>
+</html>
