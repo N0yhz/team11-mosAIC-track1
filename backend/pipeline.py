@@ -25,12 +25,30 @@ from typing import Any, Dict, Optional, Union
 # Imports with package fallback
 # ---------------------------------------------------------------------
 try:
-    from support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+    from support_library import (
+        criteria_extractor,
+        lvl2_feedback_response,
+        adapt_criteria_descriptions,
+        convert_to_markdown,
+        extract_file,
+    )
 except ImportError:
     try:
-        from .support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+        from .support_library import (
+            criteria_extractor,
+            lvl2_feedback_response,
+            adapt_criteria_descriptions,
+            convert_to_markdown,
+            extract_file,
+        )
     except ImportError:
-        from backend.support_library import criteria_extractor, lvl2_feedback_response, adapt_criteria_descriptions
+        from backend.support_library import (
+            criteria_extractor,
+            lvl2_feedback_response,
+            adapt_criteria_descriptions,
+            convert_to_markdown,
+            extract_file,
+        )
 
 
 # =====================================================================
@@ -38,8 +56,9 @@ except ImportError:
 # =====================================================================
 def _convert_to_markdown_placeholder(file_path: str) -> str:
     """
-    Placeholder helper to convert non-markdown documents (e.g., PDF, DOCX)
-    to Markdown format prior to downstream pipeline processing.
+    Converts any input document format (PDF, Excel, CSV, TXT, Markdown)
+    to a clean Markdown (.md) format prior to downstream pipeline analysis.
+    Supports Customer RFPs and Vendor Proposals (including PowerPoint PDF exports).
     """
     path = Path(file_path)
     if not path.exists():
@@ -47,22 +66,25 @@ def _convert_to_markdown_placeholder(file_path: str) -> str:
 
     ext = path.suffix.lower()
 
-    if ext in [".md", ".markdown", ".txt"]:
+    # If it is already a markdown document, return directly
+    if ext in [".md", ".markdown"]:
         return str(path)
 
-    elif ext == ".pdf":
-        raise NotImplementedError(
-            f"PDF conversion for '{path.name}' is not yet implemented. "
-            "Please provide a Markdown (.md) file."
+    try:
+        print(f"[Extractor] Auto-detecting & parsing '{path.name}' ({ext}) into clean Markdown...")
+        output_md_path = convert_to_markdown(
+            path,
+            include_metadata=True,
+            include_page_headers=False,
         )
-
-    elif ext in [".docx", ".doc"]:
-        raise NotImplementedError(
-            f"DOCX conversion for '{path.name}' is not yet implemented. "
-            "Please provide a Markdown (.md) file."
-        )
-
-    return str(path)
+        print(f"[Extractor] Successfully converted '{path.name}' -> '{output_md_path}'")
+        return str(output_md_path)
+    except Exception as err:
+        print(f"[Extractor Warning] Conversion via extractor failed for '{path.name}': {err}")
+        # Plain text fallback
+        if ext in [".txt", ".log", ".text"]:
+            return str(path)
+        raise ValueError(f"Failed to process document '{path.name}': {err}")
 
 
 # =====================================================================

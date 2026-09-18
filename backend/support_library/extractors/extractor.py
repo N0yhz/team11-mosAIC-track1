@@ -16,7 +16,7 @@ from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional, Union, Tuple
 
-import pymupdf as fitz
+import pymupdf
 import pandas as pd
 from pydantic import BaseModel, Field
 
@@ -300,7 +300,7 @@ def extract_pdf(file_path: Union[str, Path]) -> ExtractedDocument:
             f"This happens when a binary PDF is downloaded, copied, or saved as text (e.g. response.text instead of response.content)."
         )
 
-    doc = fitz.open(path)
+    doc = pymupdf.open(path)
     sections: List[DocumentSection] = []
     text_blocks: List[str] = []
 

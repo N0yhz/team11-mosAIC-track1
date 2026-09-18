@@ -67,6 +67,8 @@ You have been tasked with evaluating a vendor's proposal/response against a form
    - Explicit citations for RFP reference and Proposal reference.
    - A clear explanation of why this hurts the proposal.
    - A concrete `suggested_fix` with `rewritten_text`: the exact rewritten paragraph or section text ready to be copied and pasted directly into the vendor's proposal to fix the issue.
+   - CRITICAL REQUIREMENT - RUBRIC SCORE ALIGNMENT:
+     In addition to specific RFP requirements gaps, you MUST also inspect the 7 core Proposal Quality Rubric dimensions (Appendix A: Problem Understanding, Scope & Deliverables Clarity, Pricing Clarity, Timeline Clarity, Completeness, Tone & Persuasiveness, Risk/Assumptions Transparency). If the proposal has deficiencies in any of these rubric dimensions (e.g. unstated assumptions, missing rollback plan, vague milestone deliverables, lack of transparent pricing breakdown), you MUST generate actionable improvement items with concrete rewritten text targeting those rubric deficiencies so the vendor can elevate their overall rubric grade.
 
 4. TASK B (CORRECTED PROPOSAL):
    Provide concrete actionable recommendations, key improvements, and a comprehensive corrected proposal addressing all requirements.

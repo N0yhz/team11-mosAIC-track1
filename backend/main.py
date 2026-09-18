@@ -46,6 +46,18 @@ except ImportError:
             adapt_criteria_descriptions,
         )
 
+try:
+    from support_library.rubric_evaluator import evaluate_rubric_score, enrich_issues_with_rubric_deficiencies
+    from support_library.extractors import extract_file
+except ImportError:
+    try:
+        from .support_library.rubric_evaluator import evaluate_rubric_score, enrich_issues_with_rubric_deficiencies
+        from .support_library.extractors import extract_file
+    except ImportError:
+        from backend.support_library.rubric_evaluator import evaluate_rubric_score, enrich_issues_with_rubric_deficiencies
+        from backend.support_library.extractors import extract_file
+
+
 
 # ---------------------------------------------------------------------
 # Session Artifact Hygiene & Purge Functionality
@@ -298,7 +310,76 @@ async def get_sample_result() -> Dict[str, Any]:
     ])
     if sample_path:
         with open(sample_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            sample_data = json.load(f)
+        if "rubric_evaluation" not in sample_data:
+            sample_data["rubric_evaluation"] = {
+                "proposal_name": "response_2_medium.md",
+                "summary": "Clarion provides solid baseline compliance across core warehouse functional areas, but leaves hardware dependencies and SLA penalty terms vaguely specified.",
+                "total_score": 21,
+                "max_total_score": 35,
+                "average_score": 3.0,
+                "percentage": 60.0,
+                "rubric_scores": [
+                    {
+                        "criterion_id": "problem_understanding",
+                        "criterion_name": "Problem Understanding",
+                        "score": 3,
+                        "max_score": 5,
+                        "comment": "Demonstrates adequate comprehension of Nordframe's multi-depot throughput bottlenecks, though specific KPI targets are generic."
+                    },
+                    {
+                        "criterion_id": "scope_deliverables",
+                        "criterion_name": "Scope & Deliverables Clarity",
+                        "score": 3,
+                        "max_score": 5,
+                        "comment": "Key functional modules and API endpoints are mapped out; handheld scanner integration details remain high-level."
+                    },
+                    {
+                        "criterion_id": "pricing_clarity",
+                        "criterion_name": "Pricing Clarity",
+                        "score": 4,
+                        "max_score": 5,
+                        "comment": "Software licensing and tiered SaaS support models are clearly itemized with transparent monthly rates."
+                    },
+                    {
+                        "criterion_id": "timeline_clarity",
+                        "criterion_name": "Timeline Clarity",
+                        "score": 3,
+                        "max_score": 5,
+                        "comment": "Overall 6-month delivery plan provided with quarterly gates, but lacks milestone buffers for user acceptance testing."
+                    },
+                    {
+                        "criterion_id": "completeness",
+                        "criterion_name": "Completeness",
+                        "score": 3,
+                        "max_score": 5,
+                        "comment": "Addresses primary functional RFP criteria; references safety protocol manuals as post-award deliverables."
+                    },
+                    {
+                        "criterion_id": "tone_persuasiveness",
+                        "criterion_name": "Tone & Persuasiveness",
+                        "score": 3,
+                        "max_score": 5,
+                        "comment": "Professional, business-like tone that covers compliance checkboxes without distinct competitive differentiation."
+                    },
+                    {
+                        "criterion_id": "risk_transparency",
+                        "criterion_name": "Risk/Assumptions Transparency",
+                        "score": 2,
+                        "max_score": 5,
+                        "comment": "Identifies database migration risks but omits specific mitigation strategies, contingency plans, or downtime allowances."
+                    }
+                ]
+            }
+            sample_data["rubric_evaluation"]["scores"] = sample_data["rubric_evaluation"]["rubric_scores"]
+
+        # Ensure sample issues_and_fixes incorporates Rubric Score deficiencies
+        if "response_feedback" in sample_data and isinstance(sample_data["response_feedback"], dict):
+            current_issues = sample_data["response_feedback"].get("issues_and_fixes", [])
+            sample_data["response_feedback"]["issues_and_fixes"] = enrich_issues_with_rubric_deficiencies(
+                current_issues, sample_data.get("rubric_evaluation", {})
+            )
+        return sample_data
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Sample result file not found."
@@ -353,16 +434,21 @@ async def adapt_criteria_endpoint(
 @app.post("/api/extract-criteria")
 @app.post("/api/criteria/extract")
 async def extract_criteria_endpoint(
-    rfp_file: UploadFile = File(..., description="Customer RFP document (.md, .txt)"),
+    rfp_file: Optional[UploadFile] = File(None, description="Customer RFP document (.md, .txt, .pdf, .xlsx)"),
+    rfp_text: Optional[str] = Form(None, description="Direct raw text/markdown of RFP document (Paste input)"),
 ) -> Dict[str, Any]:
     """
     Stage 1: Extracts requirements and assigns 1-5 priority ratings from an RFP.
     Returns criteria dictionary for user review and customization before response evaluation.
+    Supports either an uploaded file or directly pasted markdown/plain text.
     """
-    if not rfp_file.filename:
+    has_file = bool(rfp_file and rfp_file.filename)
+    has_text = bool(rfp_text and rfp_text.strip())
+
+    if not has_file and not has_text:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing RFP file or invalid filename.",
+            detail="Please provide an RFP document via file upload ('rfp_file') or pasted text ('rfp_text').",
         )
 
     # Hygiene check: verify & purge prior ephemeral artifacts before starting new extraction
@@ -370,14 +456,19 @@ async def extract_criteria_endpoint(
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_crit_")
     try:
-        rfp_dest = Path(temp_dir) / rfp_file.filename
-        with open(rfp_dest, "wb") as f_out:
-            shutil.copyfileobj(rfp_file.file, f_out)
+        if has_file:
+            rfp_dest = Path(temp_dir) / rfp_file.filename
+            with open(rfp_dest, "wb") as f_out:
+                shutil.copyfileobj(rfp_file.file, f_out)
+        else:
+            rfp_dest = Path(temp_dir) / "pasted_rfp.md"
+            with open(rfp_dest, "w", encoding="utf-8") as f_out:
+                f_out.write(rfp_text.strip())
 
         if rfp_dest.stat().st_size == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Uploaded RFP file '{rfp_file.filename}' is empty.",
+                detail="Provided RFP content is empty.",
             )
 
         criteria_output_path = Path(temp_dir) / "extracted_criteria.json"
@@ -403,24 +494,27 @@ async def extract_criteria_endpoint(
 
 
 # =====================================================================
-# STAGE 2: Evaluate Response with User-Customized Criteria
-# =====================================================================
 @app.post("/api/feedback")
 @app.post("/api/evaluate-response")
 async def evaluate_feedback_endpoint(
-    response_file: UploadFile = File(..., description="Vendor proposal document (.md, .txt)"),
+    response_file: Optional[UploadFile] = File(None, description="Vendor proposal document (.md, .txt, .pdf)"),
+    response_text: Optional[str] = Form(None, description="Direct raw text/markdown of Vendor proposal (Paste input)"),
     criteria_data: Optional[str] = Form(None, description="JSON string of user-customized criteria report"),
     criteria_json: Optional[str] = Form(None, description="Alternative field name for criteria report JSON"),
     rfp_file: Optional[UploadFile] = File(None, description="Optional Customer RFP document"),
+    rfp_text: Optional[str] = Form(None, description="Optional pasted RFP text"),
 ) -> Dict[str, Any]:
     """
     Stage 2: Evaluates a vendor response against user-customized criteria.
-    Accepts the proposal document and the updated criteria JSON payload.
+    Accepts proposal document via file upload or direct text paste.
     """
-    if not response_file.filename:
+    has_resp_file = bool(response_file and response_file.filename)
+    has_resp_text = bool(response_text and response_text.strip())
+
+    if not has_resp_file and not has_resp_text:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing Response file or invalid filename.",
+            detail="Missing Response: please provide 'response_file' or pasted 'response_text'.",
         )
 
     raw_criteria = criteria_data or criteria_json
@@ -455,14 +549,21 @@ async def evaluate_feedback_endpoint(
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_eval_")
     try:
-        response_dest = Path(temp_dir) / response_file.filename
-        with open(response_dest, "wb") as f_out:
-            shutil.copyfileobj(response_file.file, f_out)
+        if has_resp_file:
+            response_dest = Path(temp_dir) / response_file.filename
+            with open(response_dest, "wb") as f_out:
+                shutil.copyfileobj(response_file.file, f_out)
+            resp_display_name = response_file.filename
+        else:
+            response_dest = Path(temp_dir) / "pasted_proposal.md"
+            with open(response_dest, "w", encoding="utf-8") as f_out:
+                f_out.write(response_text.strip())
+            resp_display_name = "pasted_proposal.md"
 
         if response_dest.stat().st_size == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Uploaded Response file '{response_file.filename}' is empty.",
+                detail="Provided Response content is empty.",
             )
 
         output_json_path = Path(temp_dir) / "evaluation_result.json"
@@ -479,41 +580,99 @@ async def evaluate_feedback_endpoint(
                 detail=f"Evaluation failed: {str(eval_err)}",
             )
 
+        # Core evaluation 2: Decoupled 7-Rubric Scoring (Appendix A)
+        try:
+            prop_doc = extract_file(str(response_dest))
+            proposal_extracted_text = prop_doc.to_markdown() or prop_doc.raw_text
+
+            rfp_extracted_text = None
+            if rfp_file and rfp_file.filename:
+                try:
+                    rfp_dest = Path(temp_dir) / rfp_file.filename
+                    with open(rfp_dest, "wb") as rf_out:
+                        shutil.copyfileobj(rfp_file.file, rf_out)
+                    rfp_doc = extract_file(str(rfp_dest))
+                    rfp_extracted_text = rfp_doc.to_markdown() or rfp_doc.raw_text
+                except Exception as rf_err:
+                    logger.warning(f"Optional RFP extraction skipped: {rf_err}")
+            elif rfp_text and rfp_text.strip():
+                rfp_extracted_text = rfp_text.strip()
+
+            rubric_res = evaluate_rubric_score(
+                proposal_text=proposal_extracted_text,
+                rfp_text=rfp_extracted_text,
+                proposal_name=resp_display_name,
+            )
+            result["rubric_evaluation"] = rubric_res
+
+            # Enrich suggestions with rubric deficiencies so suggested fixes address rubric issues
+            if "response_feedback" in result and isinstance(result["response_feedback"], dict):
+                current_issues = result["response_feedback"].get("issues_and_fixes", [])
+                result["response_feedback"]["issues_and_fixes"] = enrich_issues_with_rubric_deficiencies(
+                    current_issues, rubric_res
+                )
+        except Exception as rub_err:
+            logger.warning(f"Rubric evaluation fallback: {rub_err}")
+            result["rubric_evaluation"] = {
+                "proposal_name": resp_display_name,
+                "scores": [],
+                "rubric_scores": [],
+                "total_score": 0,
+                "max_total_score": 35,
+                "average_score": 0.0,
+                "percentage": 0.0,
+                "summary": f"Rubric scoring completed with fallback ({str(rub_err)})"
+            }
+
         return JSONResponse(content=result)
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        # Completely purge all ephemeral evaluation artifacts when session/request ends
         purge_stale_session_artifacts()
 
 
 # =====================================================================
-# UNIFIED PIPELINE (Backward Compatibility)
-# =====================================================================
 @app.post("/api/evaluate")
 async def evaluate_proposal_unified(
-    rfp_file: UploadFile = File(..., description="Customer RFP document (.md, .txt)"),
-    response_file: UploadFile = File(..., description="Vendor proposal document (.md, .txt)"),
+    rfp_file: Optional[UploadFile] = File(None, description="Customer RFP document (.md, .txt, .pdf, .xlsx)"),
+    rfp_text: Optional[str] = Form(None, description="Direct raw text/markdown of RFP document (Paste input)"),
+    response_file: Optional[UploadFile] = File(None, description="Vendor proposal document (.md, .txt, .pdf)"),
+    response_text: Optional[str] = Form(None, description="Direct raw text/markdown of Vendor proposal (Paste input)"),
 ) -> Dict[str, Any]:
     """
-    Unified end-to-end evaluation: accepts both RFP and Response,
+    Unified end-to-end evaluation: accepts both RFP and Response via file or pasted text,
     runs full pipeline, and returns consolidated JSON.
     """
-    if not rfp_file.filename or not response_file.filename:
+    has_rfp = bool((rfp_file and rfp_file.filename) or (rfp_text and rfp_text.strip()))
+    has_resp = bool((response_file and response_file.filename) or (response_text and response_text.strip()))
+
+    if not has_rfp or not has_resp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Both rfp_file and response_file are required.",
+            detail="Both RFP and Response content are required (via file or pasted text).",
         )
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_unified_")
     try:
-        rfp_dest = Path(temp_dir) / rfp_file.filename
-        response_dest = Path(temp_dir) / response_file.filename
+        if rfp_file and rfp_file.filename:
+            rfp_dest = Path(temp_dir) / rfp_file.filename
+            with open(rfp_dest, "wb") as f_out:
+                shutil.copyfileobj(rfp_file.file, f_out)
+        else:
+            rfp_dest = Path(temp_dir) / "pasted_rfp.md"
+            with open(rfp_dest, "w", encoding="utf-8") as f_out:
+                f_out.write(rfp_text.strip())
 
-        with open(rfp_dest, "wb") as f_out:
-            shutil.copyfileobj(rfp_file.file, f_out)
-        with open(response_dest, "wb") as f_out:
-            shutil.copyfileobj(response_file.file, f_out)
+        if response_file and response_file.filename:
+            response_dest = Path(temp_dir) / response_file.filename
+            with open(response_dest, "wb") as f_out:
+                shutil.copyfileobj(response_file.file, f_out)
+            resp_filename = response_file.filename
+        else:
+            response_dest = Path(temp_dir) / "pasted_proposal.md"
+            with open(response_dest, "w", encoding="utf-8") as f_out:
+                f_out.write(response_text.strip())
+            resp_filename = "pasted_proposal.md"
 
         output_json_path = Path(temp_dir) / "pipeline_result.json"
 
@@ -529,11 +688,43 @@ async def evaluate_proposal_unified(
                 detail=f"Pipeline processing failed: {str(pipeline_err)}",
             )
 
+        # Core evaluation 2: Decoupled 7-Rubric Scoring (Appendix A)
+        try:
+            prop_doc = extract_file(str(response_dest))
+            proposal_text = prop_doc.to_markdown() or prop_doc.raw_text
+            rfp_doc = extract_file(str(rfp_dest))
+            rfp_text_extracted = rfp_doc.to_markdown() or rfp_doc.raw_text
+
+            rubric_res = evaluate_rubric_score(
+                proposal_text=proposal_text,
+                rfp_text=rfp_text_extracted,
+                proposal_name=resp_filename,
+            )
+            result["rubric_evaluation"] = rubric_res
+
+            # Enrich suggestions with rubric deficiencies so suggested fixes address rubric issues
+            if "response_feedback" in result and isinstance(result["response_feedback"], dict):
+                current_issues = result["response_feedback"].get("issues_and_fixes", [])
+                result["response_feedback"]["issues_and_fixes"] = enrich_issues_with_rubric_deficiencies(
+                    current_issues, rubric_res
+                )
+        except Exception as rub_err:
+            logger.warning(f"Rubric evaluation fallback in unified endpoint: {rub_err}")
+            result["rubric_evaluation"] = {
+                "proposal_name": resp_filename,
+                "scores": [],
+                "rubric_scores": [],
+                "total_score": 0,
+                "max_total_score": 35,
+                "average_score": 0.0,
+                "percentage": 0.0,
+                "summary": f"Rubric scoring completed with fallback ({str(rub_err)})"
+            }
+
         return JSONResponse(content=result)
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        # Completely purge all ephemeral evaluation artifacts when session/request ends
         purge_stale_session_artifacts()
 
 

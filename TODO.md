@@ -7,48 +7,63 @@ Tài liệu này ghi nhận các hạng mục công việc được bảo lưu, 
 
 ---
 
-## 📌 Vấn đề 1: Bảng Chấm 7 Tiêu Chí Rubric (Appendix A) — [TRẠNG THÁI: PASS / DEFERRED]
-> **Trạng thái:** Tạm thời đánh dấu **PASS** trong hệ thống hiện tại và sẽ được hoàn thiện ở Phase tiếp theo.
+## ✅ Vấn đề 1: Bảng Chấm 7 Tiêu Chí Rubric (Appendix A) — [TRẠNG THÁI: HOÀN THÀNH]
+> **Trạng thái:** Đã hoàn thành! Đã bóc tách core function từ branch `dev/atl` vào `backend/support_library/rubric_evaluator/`, chạy độc lập và hiển thị bảng điểm 7 chiều phía trên phần so sánh RFP vs Proposal.
 
 ### Bối cảnh & Yêu cầu từ Đề bài FPT Software:
-Theo **Appendix A (Additional Scoring Criteria)** trong tài liệu đề bài, ngoài việc bóc tách các yêu cầu chức năng cụ thể của RFP, hệ thống cần chấm điểm tổng thể đề xuất (thang điểm 1–5 hoặc traffic-light) kèm nhận xét ngắn cho 7 chiều chất lượng hồ sơ thầu:
-1. **Problem Understanding** (Thấu hiểu bài toán): Đề xuất có phản ánh đúng vấn đề và mục tiêu thực tế của khách hàng từ RFP không, hay chỉ là một bài chào hàng chung chung?
-2. **Scope & Deliverables Clarity** (Độ rõ ràng phạm vi & bàn giao): Các hạng mục bàn giao có cụ thể, không mập mờ không? Đã rõ ràng cái gì bao gồm và cái gì KHÔNG bao gồm chưa?
-3. **Pricing Clarity** (Độ minh bạch về giá): Giá cả có được nêu rõ, bóc tách hạng mục dễ hiểu không (thay vì mơ hồ hoặc 'báo giá sau')?
-4. **Timeline Clarity** (Độ rõ ràng về tiến độ): Các mốc thời gian có cụ thể với ngày tháng/tuần rõ ràng không (thay vì 'trong thời gian sớm nhất')?
-5. **Completeness vs. RFP Requirements** (Độ đầy đủ so với RFP): Đề xuất có giải quyết được mọi yêu cầu mà RFP đã nêu rõ không?
-6. **Tone & Persuasiveness** (Văn phong & Sức thuyết phục): Văn bản có tự tin, hướng đến khách hàng và chuyên nghiệp không (tránh văn mẫu sáo rỗng)?
-7. **Risk / Assumptions Transparency** (Minh bạch rủi ro & giả định): Các giả định, phụ thuộc kỹ thuật hoặc rủi ro có được nêu rõ thay vì giấu đi không?
+Theo **Appendix A (Additional Scoring Criteria)** trong tài liệu đề bài, ngoài việc bóc tách các yêu cầu chức năng cụ thể của RFP, hệ thống cần chấm điểm tổng thể đề xuất (thang điểm 1–5) kèm nhận xét ngắn cho 7 chiều chất lượng hồ sơ thầu:
+1. **Problem Understanding** (Thấu hiểu bài toán)
+2. **Scope & Deliverables Clarity** (Độ rõ ràng phạm vi & bàn giao)
+3. **Pricing Clarity** (Độ minh bạch về giá)
+4. **Timeline Clarity** (Độ rõ ràng về tiến độ)
+5. **Completeness vs. RFP Requirements** (Độ đầy đủ so với RFP)
+6. **Tone & Persuasiveness** (Văn phong & Sức thuyết phục)
+7. **Risk / Assumptions Transparency** (Minh bạch rủi ro & giả định)
 
-### Kế hoạch Triển khai trong tương lai:
-- [ ] Thêm schema cấu trúc `rubric_scoring` vào prompt của `lvl2_feedback_response.py`.
-- [ ] Tính toán điểm Rubric Score trung bình (ví dụ: Overall Rubric: 3.8 / 5.0).
-- [ ] Thiết kế bảng Rubric Scorecard trực quan trên giao diện Frontend với thanh tiến trình màu và nhận xét tương ứng từng tiêu chí.
+### Đã triển khai:
+- [x] Tạo module độc lập `backend/support_library/rubric_evaluator/` chứa:
+  - `models.py`: `Criterion`, `CriterionScore`, `ScoringResult` với các thuộc tính tính toán tự động (`total_score`, `max_total_score`, `average_score`, `percentage`).
+  - `criteria.py`: 7 tiêu chí chuẩn hóa theo Appendix A của FPT Software.
+  - `scorer.py`: function `evaluate_rubric_score(proposal_text, rfp_text, proposal_name)` tích hợp Google GenAI SDK (`gemini-2.5-flash`), kèm fallback heuristic an toàn khi quota hoặc mạng gặp sự cố.
+- [x] Tách riêng rẽ hoàn toàn:
+  - `evaluate_response_stage`: chuyên trách ma trận so sánh RFP vs Proposal, trích dẫn nguồn (citations) và đề xuất sửa lỗi (issues & fixes).
+  - `evaluate_rubric_score`: chuyên trách chấm 7 chiều chất lượng độc lập của Proposal.
+- [x] Backend `POST /api/feedback` và `POST /api/evaluate` gọi song song cả 2 function và trả về `rubric_evaluation` cùng với `response_feedback`.
+- [x] Frontend hiển thị bảng điểm **7-Dimension Proposal Quality Rubric Assessment** ở **ngay phía trên** bảng so sánh Criteria Compliance Scorecard trong Step 4:
+  - Tổng điểm và điểm trung bình (thang điểm 5.0), xếp hạng chất lượng Tier A+/A/B/C.
+  - Tóm tắt đánh giá tổng quan của giám khảo (Evaluator Synthesis Commentary).
+  - 7 thẻ tiêu chí trực quan với thanh tiến trình màu sắc, điểm số và nhận xét bằng chứng cụ thể.
 
 ---
 
-## 📌 Vấn đề 5: Hỗ Trợ Dán Văn Bản Trực Tiếp (Paste Input) — [TRẠNG THÁI: BACKLOG]
-> **Trạng thái:** Tạm hoãn. Hiện tại hệ thống hỗ trợ upload file (.md, .txt) và tải dữ liệu 4 kịch bản Preset thực tế.
+## ✅ Vấn đề 5: Hỗ Trợ Dán Văn Bản Trực Tiếp (Paste Input) — [TRẠNG THÁI: HOÀN THÀNH]
+> **Trạng thái:** Đã hoàn thành! Đã hỗ trợ chuyển đổi linh hoạt giữa Upload File và Paste Text trực tiếp cho cả RFP (Step 1) và Proposal (Step 3).
 
 ### Yêu cầu từ Đề bài:
 - Ban giám khảo có thể mang dữ liệu kiểm thử mới (*unseen validation data*) đến buổi chấm thi và muốn **paste trực tiếp đoạn text RFP hoặc Proposal** từ clipboard vào trình duyệt thay vì phải tạo file trên máy.
 
-### Kế hoạch Triển khai:
-- [ ] Thêm tab chuyển đổi: [📁 Upload File] | [📝 Paste Markdown/Text] ở cả Stage 1 (RFP) và Stage 2 (Proposal).
-- [ ] Backend hỗ trợ tiếp nhận cả raw_text qua multipart form hoặc JSON body.
+### Đã triển khai:
+- [x] Thêm nút chuyển đổi tab trực quan: [📁 Upload File] | [📝 Paste Text] ở cả Step 1 (RFP) và Step 3 (Proposal).
+- [x] Tích hợp khung soạn thảo / dán văn bản kích thước rộng, hỗ trợ đếm ký tự, số từ và nút Clear text nhanh.
+- [x] Backend hỗ trợ tiếp nhận cả raw text/markdown thông qua các trường form 
+fp_text và 
+esponse_text tại các endpoint /api/extract-criteria, /api/feedback, và /api/evaluate.
+- [x] Tự động đồng bộ với tính năng xuất bản thảo đề xuất hoàn thiện (Revised Proposal) tại Step 5.
 
 ---
 
-## 📌 Vấn đề 6: Xử Lý File PDF & PowerPoint PDF (Bonus Criterion) — [TRẠNG THÁI: BACKLOG]
-> **Trạng thái:** Tạm hoãn. Hiện tại hệ thống xử lý định dạng Markdown (.md) và Plaintext (.txt).
+## ✅ Vấn đề 6: Xử Lý File PDF & PowerPoint PDF (Bonus Criterion) — [TRẠNG THÁI: HOÀN THÀNH]
+> **Trạng thái:** Đã hoàn thành và tích hợp trực tiếp vào module `support_library.extractors` và pipeline đánh giá backend.
 
 ### Yêu cầu từ Đề bài:
 - **Bonus Criterion:** Đánh giá cao các đội có khả năng xử lý tài liệu thực tế dài và phức tạp hơn, chẳng hạn như hồ sơ RFP dạng file PDF hoặc Proposal xuất từ PowerPoint sang PDF.
 
-### Kế hoạch Triển khai:
-- [ ] Cài đặt thư viện đọc PDF nhẹ như `pypdf` hoặc `pdfplumber` vào `backend/requirements.txt`.
-- [ ] Tận dụng khả năng xử lý multimodal nguyên bản của Google Gemini API (`types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf')`) để phân tích trực tiếp PDF mà không làm mất cấu trúc bảng biểu.
-- [ ] Thay thế hàm NotImplementedError trong `backend/pipeline.py` bằng pipeline trích xuất nội dung PDF.
+### Đã triển khai:
+- [x] Đã cấu trúc module `support_library/extractors/` sử dụng `PyMuPDF` (`pymupdf`), `pandas`, `openpyxl` tối ưu tốc độ và trích xuất bảng biểu.
+- [x] Tự động nhận diện slide thuyết trình PowerPoint PDF (khổ 16:9 / landscape) và gắn nhãn `Slide X` thay vì `Page X`.
+- [x] Tích hợp thuật toán chống trùng lặp văn bản khi có bảng (`_bbox_overlaps_table`) và chuẩn hoá ký tự (ligatures, bullets, de-hyphenation).
+- [x] Tích hợp tự động vào `backend/pipeline.py` (`_convert_to_markdown_placeholder`) và các API endpoint tại `backend/main.py`: tự động nhận dạng định dạng file cho cả RFP lẫn Vendor Proposal.
+- [x] Cập nhật Frontend Step 1 và Step 3 hỗ trợ kéo thả / chọn file `.pdf` với giao diện thông báo định dạng trực quan.
 
 ---
 
