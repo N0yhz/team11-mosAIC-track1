@@ -806,7 +806,8 @@
       };
 
       // -----------------------------------------------------------------------
-      // STEP 5 ACTIONS: Generate & Download Revised Proposal (.md)
+      // -----------------------------------------------------------------------
+      // STEP 5 ACTIONS: Generate & Download Clean Proposal (.md)
       // -----------------------------------------------------------------------
       const generateRevisedProposalMarkdown = () => {
         const issuesList = evaluationResult?.response_feedback?.issues_and_fixes || [];
@@ -817,65 +818,86 @@
 
         const vendorName = evaluationResult?.response_feedback?.vendor_name || "Clarion Data Systems";
         const dateStr = new Date().toISOString().split("T")[0];
-        const baseDraft = originalProposalText || `# Proposal: Warehouse Visibility Platform for NordFrame Logistics\n\n**Submitted by:** ${vendorName}\n\n## Proposed Solution\nDirect real-time inventory visibility platform across all 6 warehouse sites.`;
+        let baseDraft = originalProposalText || `# Proposal: Warehouse Visibility Platform for NordFrame Logistics\n\n**Submitted by:** ${vendorName}\n\n## Proposed Solution\nDirect real-time inventory visibility platform across all 6 warehouse sites.`;
 
-        let auditHeader = `# Proposal: Warehouse Visibility Platform for NordFrame Logistics (REVISED DRAFT)\n\n`;
-        auditHeader += `**Vendor:** ${vendorName}\n`;
-        auditHeader += `**Revision Date:** ${dateStr}\n`;
-        auditHeader += `**Refined with:** Proposal Scorer AI\n\n`;
-        auditHeader += `> **Revision Summary:** ${selectedList.length} of ${issuesList.length} AI-recommended improvements were reviewed, approved, and integrated into this proposal draft.\n`;
-        if (selectedList.length > 0) {
-          auditHeader += `>\n`;
-          selectedList.forEach((item) => {
-            auditHeader += `> - [x] **${item.issue_id || "ISSUE"}** (${item.severity || "Fix"}): ${item.title}\n`;
-          });
+        // 1. Thoroughly sanitize baseDraft of any existing repetitive audit headers, draft labels, or internal tags
+        baseDraft = baseDraft
+          .replace(/^# Proposal:[^\n]*\(REVISED DRAFT\)\s*[\s\S]*?---\s*/gi, "")
+          .replace(/^>\s*\*\*Revision Summary:\*\*[\s\S]*?---\s*/gim, "")
+          .replace(/\*\*Variant:\s*[^\n]+\*\*/gi, "")
+          .replace(/\(fictional\)/gi, "")
+          .replace(/\(REVISED DRAFT\)/gi, "")
+          .replace(/\[Revised draft\]/gi, "")
+          .replace(/##\s*Revised Section:[^\n]*/gi, "")
+          .trim();
+
+        // Ensure proper clean title at the top if baseDraft lost its main h1
+        if (!baseDraft.startsWith("# ")) {
+          baseDraft = `# Proposal: Warehouse Visibility Platform for NordFrame Logistics\n\n**Submitted by:** ${vendorName}\n**Date:** ${dateStr}\n\n` + baseDraft;
         }
-        auditHeader += `\n---\n\n`;
 
         let revisedBody = baseDraft;
 
+        // 2. Intelligently merge approved fixes into proper, clean sections
         selectedList.forEach((item) => {
-          const fixText = item.suggested_fix?.rewritten_text || "";
+          const fixText = (item.suggested_fix?.rewritten_text || "").trim();
           if (!fixText) return;
           const searchKey = ((item.title || "") + " " + (item.criterion_id || "")).toLowerCase();
 
-          if (searchKey.includes("timeline") || searchKey.includes("schedule") || searchKey.includes("milestone")) {
-            if (/##\s*timeline/i.test(revisedBody)) {
-              revisedBody = revisedBody.replace(/##\s*timeline[^\n]*\n([\s\S]*?)(?=\n##|$)/i, `## Timeline & Milestone Commitments (Revised)\n${fixText}\n`);
+          if (searchKey.includes("timeline") || searchKey.includes("schedule") || searchKey.includes("milestone") || searchKey.includes("rollout") || searchKey.includes("onboarding")) {
+            const pattern = /(?:^|\n)#{2,3}\s*(?:[\d\.]+\s*)?(?:implementation\s+)?(?:timeline|schedule|milestone|rollout)[^\n]*\n([\s\S]*?)(?=\n#{2,3}\s+|$)/i;
+            if (pattern.test(revisedBody)) {
+              revisedBody = revisedBody.replace(pattern, `\n\n## Implementation Roadmap & Onboarding Plan\n${fixText}\n`);
             } else {
-              revisedBody += `\n\n## Timeline & Milestone Commitments (Revised)\n${fixText}\n`;
+              revisedBody += `\n\n## Implementation Roadmap & Onboarding Plan\n${fixText}\n`;
             }
           } else if (searchKey.includes("sla") || searchKey.includes("support") || searchKey.includes("maintenance")) {
-            if (/##\s*support/i.test(revisedBody)) {
-              revisedBody = revisedBody.replace(/##\s*support[^\n]*\n([\s\S]*?)(?=\n##|$)/i, `## Support & Maintenance SLAs (Revised)\n${fixText}\n`);
+            const pattern = /(?:^|\n)#{2,3}\s*(?:[\d\.]+\s*)?(?:support|maintenance|sla)[^\n]*\n([\s\S]*?)(?=\n#{2,3}\s+|$)/i;
+            if (pattern.test(revisedBody)) {
+              revisedBody = revisedBody.replace(pattern, `\n\n## Support, Maintenance & Service Level Agreements (SLAs)\n${fixText}\n`);
             } else {
-              revisedBody += `\n\n## Support & Maintenance SLAs (Revised)\n${fixText}\n`;
+              revisedBody += `\n\n## Support, Maintenance & Service Level Agreements (SLAs)\n${fixText}\n`;
             }
           } else if (searchKey.includes("risk") || searchKey.includes("assumption")) {
-            if (/##\s*(assumptions|risk)/i.test(revisedBody)) {
-              revisedBody = revisedBody.replace(/##\s*(assumptions|risk)[^\n]*\n([\s\S]*?)(?=\n##|$)/i, `## Assumptions & Project Risk Management (Revised)\n${fixText}\n`);
+            const pattern = /(?:^|\n)#{2,3}\s*(?:[\d\.]+\s*)?(?:assumptions?|risks?)[^\n]*\n([\s\S]*?)(?=\n#{2,3}\s+|$)/i;
+            if (pattern.test(revisedBody)) {
+              revisedBody = revisedBody.replace(pattern, `\n\n## Assumptions & Proactive Risk Management\n${fixText}\n`);
             } else {
-              revisedBody += `\n\n## Assumptions & Project Risk Management (Revised)\n${fixText}\n`;
+              revisedBody += `\n\n## Assumptions & Proactive Risk Management\n${fixText}\n`;
             }
-          } else if (searchKey.includes("pricing") || searchKey.includes("budget") || searchKey.includes("cost")) {
-            if (/##\s*pricing/i.test(revisedBody)) {
-              revisedBody = revisedBody.replace(/##\s*pricing[^\n]*\n([\s\S]*?)(?=\n##|$)/i, `## Commercial Pricing & Budget Alignment (Revised)\n${fixText}\n`);
+          } else if (searchKey.includes("pricing") || searchKey.includes("budget") || searchKey.includes("cost") || searchKey.includes("commercial")) {
+            const pattern = /(?:^|\n)#{2,3}\s*(?:[\d\.]+\s*)?(?:pricing|budget|cost|commercial)[^\n]*\n([\s\S]*?)(?=\n#{2,3}\s+|$)/i;
+            if (pattern.test(revisedBody)) {
+              revisedBody = revisedBody.replace(pattern, `\n\n## Commercial Pricing & Budget Alignment\n${fixText}\n`);
             } else {
-              revisedBody += `\n\n## Commercial Pricing & Budget Alignment (Revised)\n${fixText}\n`;
+              revisedBody += `\n\n## Commercial Pricing & Budget Alignment\n${fixText}\n`;
             }
-          } else if (searchKey.includes("postgres") || searchKey.includes("database")) {
-            if (/##\s*(proposed solution|technical solution)/i.test(revisedBody)) {
-              revisedBody = revisedBody.replace(/(database migration|proprietary cloud[^\n]*)/i, "Native PostgreSQL integration (no migration)");
-              revisedBody += `\n\n### Database Integration Commitment\n${fixText}\n`;
+          } else if (searchKey.includes("postgres") || searchKey.includes("database") || searchKey.includes("migration")) {
+            if (/##\s*(?:proposed solution|technical solution)/i.test(revisedBody)) {
+              revisedBody = revisedBody.replace(/(database migration|proprietary cloud[^\n]*)/i, "Native PostgreSQL integration (no migration required)");
+              revisedBody += `\n\n### Database Integration Architecture\n${fixText}\n`;
             } else {
-              revisedBody += `\n\n## Database Integration Commitment\n${fixText}\n`;
+              revisedBody += `\n\n## Database Integration Architecture\n${fixText}\n`;
             }
           } else {
-            revisedBody += `\n\n## Revised Section: ${item.title}\n${fixText}\n`;
+            if (/^#{1,3}\s/.test(fixText)) {
+              revisedBody += `\n\n${fixText}\n`;
+            } else {
+              const cleanTitle = (item.title || "Technical Specification")
+                .replace(/^(unacceptable|absence of|lack of|missing|issue:\s*)/i, "")
+                .trim();
+              revisedBody += `\n\n## ${cleanTitle}\n${fixText}\n`;
+            }
           }
         });
 
-        return auditHeader + revisedBody;
+        // 3. Final cleanup of any lingering "(Revised)" tags or duplicate blank lines
+        revisedBody = revisedBody
+          .replace(/\s*\(Revised\)/gi, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+
+        return revisedBody;
       };
 
       const handleDownloadRevisedProposal = () => {
@@ -1147,19 +1169,6 @@
                   </h1>
                   <p class="text-2xs text-gray-400 font-mono">Interactive 5-Step Criteria & Proposal Evaluation Workbench</p>
                 </div>
-              </div>
-
-              {/* Quick Jump & Instant Demo */}
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLoadInstantFullDemo}
-                  disabled={evaluatingResponse}
-                  class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
-                  title="Instantly load pre-computed benchmark dataset"
-                >
-                  <span>⚡ 1-Click Instant Demo</span>
-                </button>
               </div>
             </div>
           </header>
@@ -2163,8 +2172,8 @@
                     </div>
                   )}
 
-                  {/* PROPOSAL CONTENT PREVIEW (IF LOADED) */}
-                  {responseFile && (
+                  {/* PROPOSAL CONTENT PREVIEW (ONLY FOR UPLOAD MODE) */}
+                  {responseFile && responseInputMode === "upload" && (
                     <div class="rounded-xl border border-gray-800 bg-dark-950 overflow-hidden mb-6">
                       <div class="p-3 bg-dark-900 border-b border-gray-800 flex items-center justify-between text-xs font-mono text-gray-400">
                         <div class="flex items-center gap-2">
@@ -2736,16 +2745,6 @@
                     <div class="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(generateRevisedProposalMarkdown());
-                          alert("✓ Entire Markdown text copied to clipboard!");
-                        }}
-                        class="px-4 py-2 rounded-xl bg-dark-800 hover:bg-dark-700 text-gray-200 border border-gray-700 font-bold text-xs flex items-center gap-1.5"
-                      >
-                        📋 Copy Markdown
-                      </button>
-                      <button
-                        type="button"
                         onClick={handleDownloadRevisedProposal}
                         class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/30 flex items-center gap-2 active:scale-95"
                       >
@@ -2794,8 +2793,25 @@
                   {/* FULL MARKDOWN PREVIEW CONTAINER */}
                   <div class="rounded-xl border border-gray-800 bg-dark-950 overflow-hidden shadow-2xl">
                     <div class="p-3 bg-dark-900 border-b border-gray-800 flex items-center justify-between text-xs font-mono text-gray-400">
-                      <span>📄 revised_proposal.md (Live Draft Preview)</span>
-                      <span>Markdown format</span>
+                      <div class="flex items-center gap-2">
+                        <span>📄</span>
+                        <span class="font-bold text-gray-200">revised_proposal.md</span>
+                        <span class="text-3xs text-gray-500">(Live Draft Preview)</span>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <span class="text-3xs text-gray-400">Markdown format</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generateRevisedProposalMarkdown());
+                            alert("✓ Entire Markdown text copied to clipboard!");
+                          }}
+                          class="px-3 py-1 rounded-lg bg-dark-800 hover:bg-dark-700 text-gray-200 border border-gray-700 font-bold text-2xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                          title="Copy entire markdown to clipboard"
+                        >
+                          <span>📋 Copy Markdown</span>
+                        </button>
+                      </div>
                     </div>
                     <pre class="p-6 text-xs font-mono text-gray-200 whitespace-pre-wrap leading-relaxed max-h-[550px] overflow-y-auto custom-scrollbar">
                       {generateRevisedProposalMarkdown()}
