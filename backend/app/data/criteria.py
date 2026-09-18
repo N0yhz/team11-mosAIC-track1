@@ -5,56 +5,56 @@ DEFAULT_CRITERIA = [
     Criterion(
         id="problem_understanding",
         name="Problem Understanding",
-        definition="Versteht das Proposal das Kundenproblem?",
-        anchor_low="Generische Floskeln, kein Bezug zum konkreten Problem",
-        anchor_high="Präzise Beschreibung des spezifischen Kundenkontexts",
+        definition="Does the proposal demonstrate a clear understanding of the customer's problem?",
+        anchor_low="Generic boilerplate phrases, no reference to the specific problem",
+        anchor_high="Precise description of the specific customer context and problem",
     ),
 
     Criterion(
         id="scope_deliverables",
         name="Scope & Deliverables Clarity",
-        definition="Sind Leistungen konkret benannt?",
-        anchor_low="Vage Feature-Liste ohne Substanz",
-        anchor_high="Klar abgegrenzte, konkrete Deliverables",
+        definition="Are services and deliverables concretely defined?",
+        anchor_low="Vague feature list without substance",
+        anchor_high="Clearly delineated, tangible deliverables",
     ),
 
     Criterion(
         id="pricing_clarity",
         name="Pricing Clarity",
-        definition="Ist die Preisgestaltung klar kommuniziert?",
-        anchor_low="Komplett aufgeschoben",
-        anchor_high="Klare Zahlen oder Preisstruktur",
+        definition="Is pricing clearly communicated and structured?",
+        anchor_low="Completely deferred or omitted",
+        anchor_high="Clear figures, breakdown, or pricing structure",
     ),
 
     Criterion(
         id="timeline_clarity",
         name="Timeline Clarity",
-        definition="Sind Termine und Meilensteine konkret benannt?",
-        anchor_low="Keine Daten oder Meilensteine",
-        anchor_high="Konkrete Termine und Meilensteine",
+        definition="Are schedules, deadlines, and milestones concretely specified?",
+        anchor_low="No dates, schedule, or milestones provided",
+        anchor_high="Concrete timelines, phases, and milestones",
     ),
 
     Criterion(
         id="completeness",
         name="Completeness",
-        definition="Wirkt das Proposal vollständig?",
-        anchor_low="Offensichtliche Lücken",
-        anchor_high="Wirkt vollständig",
+        definition="Does the proposal appear complete and comprehensive?",
+        anchor_low="Obvious gaps, missing sections, or unresolved points",
+        anchor_high="Comprehensive and covers all required aspects",
     ),
 
     Criterion(
         id="tone_persuasiveness",
         name="Tone & Persuasiveness",
-        definition="Ist der Ton überzeugend und zugeschnitten?",
-        anchor_low="Generisches Boilerplate",
-        anchor_high="Zugeschnitten und überzeugend",
+        definition="Is the tone persuasive, professional, and tailored to the client?",
+        anchor_low="Generic boilerplate with little relevance",
+        anchor_high="Tailored, engaging, and highly persuasive",
     ),
 
     Criterion(
         id="risk_transparency",
         name="Risk/Assumptions Transparency",
-        definition="Werden Risiken und Annahmen offengelegt?",
-        anchor_low="Nichts offengelegt",
-        anchor_high="Risiken und Annahmen klar benannt",
+        definition="Are project risks, dependencies, and assumptions transparently disclosed?",
+        anchor_low="Nothing disclosed; ignores potential risks",
+        anchor_high="Risks and assumptions are clearly identified and mitigated",
     ),
 ]

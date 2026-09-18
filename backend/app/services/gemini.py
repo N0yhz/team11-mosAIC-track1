@@ -1,21 +1,32 @@
+from typing import Sequence
 from google import genai
 from google.genai import types
 
-from config import GOOGLE_API_KEY
-
+from app.core.config import settings
+from app.data.criteria import DEFAULT_CRITERIA
+from app.models.criteria import Criterion
 from app.models.scoring import ScoringResult
 
 
-client = genai.Client(
-    api_key=GOOGLE_API_KEY
-)
+def get_gemini_client() -> genai.Client:
+    """Initialize and return the Google GenAI client.
+    
+    Raises ValueError if GOOGLE_API_KEY is missing or contains placeholder.
+    """
+    api_key = settings.GOOGLE_API_KEY
+    if not api_key or api_key == "YOUR_GOOGLE_API_KEY":
+        raise ValueError(
+            "GOOGLE_API_KEY is not configured. Please set GOOGLE_API_KEY or GEMINI_API_KEY in your environment or .env file."
+        )
+    return genai.Client(api_key=api_key)
 
 
-def score_proposal(
+def build_scoring_prompt(
     proposal_text: str,
-    criteria,
-) -> ScoringResult:
-
+    criteria: Sequence[Criterion],
+    rfp_text: str | None = None,
+) -> str:
+    """Construct structured evaluation prompt for the Gemini model."""
     criteria_block = "\n\n".join(
         f"""
 ID: {criterion.id}
@@ -27,41 +38,69 @@ Definition: {criterion.definition}
         for criterion in criteria
     )
 
-    prompt = f"""
-Du bist ein erfahrener Sales-Reviewer.
+    rfp_section = ""
+    if rfp_text:
+        rfp_section = f"""
+RFP / TENDER CONTEXT:
+{rfp_text.strip()}
 
-Bewerte das folgende Proposal anhand der Kriterien
-auf einer Skala von 1 bis 5.
+"""
 
-KRITERIEN:
+    return f"""
+You are an experienced sales proposal reviewer.
+
+Evaluate the following proposal based on the criteria on a scale from 1 to 5.
+{rfp_section}
+CRITERIA:
 
 {criteria_block}
 
-REGELN:
-
-1. Bewerte jedes Kriterium genau einmal.
-2. Verwende exakt die vorgegebenen criterion_id Werte.
-3. Verwende exakt die vorgegebenen criterion_name Werte.
-4. Score muss zwischen 1 und 5 liegen.
-5. max_score ist immer 5.
-6. Jeder Kommentar muss sich konkret auf das Proposal beziehen.
-7. Erfinde keine Informationen.
-8. Gib ausschließlich das definierte JSON-Format zurück.
+RULES:
+1. Evaluate each criterion exactly once.
+2. Use the exact specified criterion_id values.
+3. Use the exact specified criterion_name values.
+4. The score must be an integer between 1 and 5.
+5. max_score is always 5.
+6. Every comment must refer concretely to the proposal and provide clear rationale.
+7. Do not invent facts or make unsubstantiated assumptions.
+8. Provide a concise summary of overall strengths and weaknesses in the 'summary' field.
+9. Return exclusively the defined JSON format.
 
 PROPOSAL:
 
-{proposal_text}
-"""
+{proposal_text.strip()}
+""".strip()
+
+
+def score_proposal(
+    proposal_text: str,
+    criteria: Sequence[Criterion] | None = None,
+    rfp_text: str | None = None,
+    proposal_name: str | None = None,
+    model: str | None = None,
+    client: genai.Client | None = None,
+) -> ScoringResult:
+    """Score a proposal using Google Gemini and return a validated ScoringResult."""
+    if criteria is None:
+        criteria = DEFAULT_CRITERIA
+
+    if client is None:
+        client = get_gemini_client()
+
+    selected_model = model or settings.GEMINI_MODEL
+    prompt = build_scoring_prompt(proposal_text=proposal_text, criteria=criteria, rfp_text=rfp_text)
 
     response = client.models.generate_content(
-        model="gemini-3.6-flash",
+        model=selected_model,
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ScoringResult,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         ),
     )
 
-    return ScoringResult.model_validate_json(
-        response.text
-    )
+    result = ScoringResult.model_validate_json(response.text)
+    if proposal_name:
+        result.proposal_name = proposal_name
+    return result
