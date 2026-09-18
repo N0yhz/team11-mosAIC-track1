@@ -46,6 +46,64 @@ except ImportError:
             adapt_criteria_descriptions,
         )
 
+
+# ---------------------------------------------------------------------
+# Session Artifact Hygiene & Purge Functionality
+# ---------------------------------------------------------------------
+def purge_stale_session_artifacts() -> Dict[str, Any]:
+    """
+    Scans and permanently removes all ephemeral evaluation artifacts:
+    - response_feedback_*.json
+    - response_correction_*.json
+    - Temporary directories (/tmp/rfp_eval_*, /tmp/crit_eval_*, /tmp/rfp_crit_*)
+    - custom_criteria_*.json
+    - Any intermediate files left from prior runs.
+    Ensures that outside an active session, no evaluation data is retained on disk.
+    """
+    purged_items = []
+    search_dirs = [
+        Path("/app"),
+        Path.cwd(),
+        Path(__file__).resolve().parent,
+        Path(__file__).resolve().parent.parent / "trash",
+        Path(tempfile.gettempdir())
+    ]
+
+    cleanup_patterns = [
+        "response_feedback_*.json",
+        "response_correction_*.json",
+        "custom_criteria*.json",
+        "extracted_criteria*.json",
+        "evaluation_result*.json",
+        "rfp_eval_*",
+        "crit_eval_*",
+        "rfp_crit_*"
+    ]
+
+    for s_dir in search_dirs:
+        if not s_dir.exists() or not s_dir.is_dir():
+            continue
+        for pat in cleanup_patterns:
+            try:
+                for entry in s_dir.glob(pat):
+                    try:
+                        if entry.is_file():
+                            entry.unlink(missing_ok=True)
+                            purged_items.append(str(entry.name))
+                        elif entry.is_dir():
+                            shutil.rmtree(entry, ignore_errors=True)
+                            purged_items.append(str(entry.name))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+    return {
+        "status": "clean",
+        "purged_count": len(purged_items),
+        "purged_items": purged_items
+    }
+
 # Initialize FastAPI application
 app = FastAPI(
     title="RFP Evaluation & Feedback Pipeline API",
@@ -104,6 +162,114 @@ async def health_check() -> Dict[str, str]:
     """Health check endpoint to verify backend status."""
     return {"status": "healthy", "service": "RFP Evaluation Pipeline", "version": "2.0.0"}
 
+
+
+# ---------------------------------------------------------------------
+# Session Management & Presets Endpoints
+# ---------------------------------------------------------------------
+@app.on_event("startup")
+async def startup_session_cleanup():
+    """Verify and purge any leftover artifacts from prior runs when backend boots."""
+    res = purge_stale_session_artifacts()
+    print(f"[Session Startup Cleanup] Purged {res['purged_count']} lingering artifacts.")
+
+
+@app.post("/api/session/reset")
+@app.post("/api/session/purge")
+async def reset_session_endpoint() -> Dict[str, Any]:
+    """
+    Explicitly wipes all ephemeral evaluation files, criteria, feedback, and corrections
+    from the server to guarantee a completely clean, isolated session.
+    """
+    res = purge_stale_session_artifacts()
+    return {
+        "status": "success",
+        "message": "Session reset complete. All prior criteria, feedback, and corrections purged.",
+        "details": res
+    }
+
+
+PRESET_CONFIGS = {
+    "weak": {
+        "vendor": "BrightPath Software Solutions",
+        "variant": "Weak (Generic / Missing Key Requirements)",
+        "rfp_rel": ["data/sample_data/rfp_nordframe.md", "sample_data/rfp_nordframe.md", "rfp_nordframe.md"],
+        "resp_rel": ["data/response/response_1_weak.md", "response/response_1_weak.md", "response_1_weak.md"],
+        "rfp_name": "rfp_nordframe.md",
+        "resp_name": "response_1_weak.md",
+    },
+    "medium": {
+        "vendor": "Clarion Data Systems",
+        "variant": "Medium (Baseline Compliance)",
+        "rfp_rel": ["data/sample_data/rfp_nordframe.md", "sample_data/rfp_nordframe.md", "rfp_nordframe.md"],
+        "resp_rel": ["data/response/response_2_medium.md", "response/response_2_medium.md", "response_2_medium.md"],
+        "rfp_name": "rfp_nordframe.md",
+        "resp_name": "response_2_medium.md",
+    },
+    "strong": {
+        "vendor": "Apex Supply Chain Tech",
+        "variant": "Strong (High Compliance)",
+        "rfp_rel": ["data/sample_data/rfp_nordframe.md", "sample_data/rfp_nordframe.md", "rfp_nordframe.md"],
+        "resp_rel": ["data/response/response_3_strong.md", "response/response_3_strong.md", "response_3_strong.md"],
+        "rfp_name": "rfp_nordframe.md",
+        "resp_name": "response_3_strong.md",
+    },
+    "overpromise": {
+        "vendor": "Vantix AI Solutions",
+        "variant": "Overpromising (High Implementation Risk)",
+        "rfp_rel": ["data/sample_data/rfp_nordframe.md", "sample_data/rfp_nordframe.md", "rfp_nordframe.md"],
+        "resp_rel": ["data/response/response_4_overpromise.md", "response/response_4_overpromise.md", "response_4_overpromise.md"],
+        "rfp_name": "rfp_nordframe.md",
+        "resp_name": "response_4_overpromise.md",
+    },
+}
+
+
+@app.get("/api/presets/{preset_key}")
+async def get_preset_scenario(preset_key: str) -> Dict[str, Any]:
+    """
+    Returns the raw file text for benchmark RFP and vendor proposal files.
+    This enables the client to load authentic documents and perform fresh AI evaluation
+    without relying on static pre-cooked results.
+    """
+    key = preset_key.lower().strip()
+    cfg = PRESET_CONFIGS.get(key)
+    if not cfg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown preset scenario '{preset_key}'. Available: {list(PRESET_CONFIGS.keys())}"
+        )
+
+    rfp_path = _find_file(cfg["rfp_rel"])
+    resp_path = _find_file(cfg["resp_rel"])
+
+    if not rfp_path or not rfp_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"RFP file for preset '{preset_key}' could not be located."
+        )
+
+    if not resp_path or not resp_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Response file for preset '{preset_key}' could not be located."
+        )
+
+    with open(rfp_path, "r", encoding="utf-8") as f:
+        rfp_text = f.read()
+
+    with open(resp_path, "r", encoding="utf-8") as f:
+        resp_text = f.read()
+
+    return {
+        "preset_key": key,
+        "vendor_name": cfg["vendor"],
+        "variant": cfg["variant"],
+        "rfp_filename": cfg["rfp_name"],
+        "rfp_content": rfp_text,
+        "response_filename": cfg["resp_name"],
+        "response_content": resp_text
+    }
 
 @app.get("/api/sample/criteria")
 async def get_sample_criteria() -> Dict[str, Any]:
@@ -199,6 +365,9 @@ async def extract_criteria_endpoint(
             detail="Missing RFP file or invalid filename.",
         )
 
+    # Hygiene check: verify & purge prior ephemeral artifacts before starting new extraction
+    purge_stale_session_artifacts()
+
     temp_dir = tempfile.mkdtemp(prefix="rfp_crit_")
     try:
         rfp_dest = Path(temp_dir) / rfp_file.filename
@@ -240,7 +409,9 @@ async def extract_criteria_endpoint(
 @app.post("/api/evaluate-response")
 async def evaluate_feedback_endpoint(
     response_file: UploadFile = File(..., description="Vendor proposal document (.md, .txt)"),
-    criteria_data: str = Form(..., description="JSON string of user-customized criteria report"),
+    criteria_data: Optional[str] = Form(None, description="JSON string of user-customized criteria report"),
+    criteria_json: Optional[str] = Form(None, description="Alternative field name for criteria report JSON"),
+    rfp_file: Optional[UploadFile] = File(None, description="Optional Customer RFP document"),
 ) -> Dict[str, Any]:
     """
     Stage 2: Evaluates a vendor response against user-customized criteria.
@@ -252,24 +423,35 @@ async def evaluate_feedback_endpoint(
             detail="Missing Response file or invalid filename.",
         )
 
-    # Validate criteria_data JSON
+    raw_criteria = criteria_data or criteria_json
+    if not raw_criteria:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing criteria payload: please provide 'criteria_data' or 'criteria_json'.",
+        )
+
+    # Hygiene check: verify & purge prior ephemeral artifacts before starting new evaluation
+    purge_stale_session_artifacts()
+
+    # Validate criteria JSON
     try:
-        parsed_criteria = json.loads(criteria_data)
+        parsed_criteria = json.loads(raw_criteria)
     except Exception as json_err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid criteria_data JSON: {str(json_err)}",
+            detail=f"Invalid criteria JSON: {str(json_err)}",
         )
 
+    if isinstance(parsed_criteria, dict) and "criteria_report" in parsed_criteria and isinstance(parsed_criteria["criteria_report"], dict):
+        parsed_criteria = parsed_criteria["criteria_report"]
+    elif isinstance(parsed_criteria, list):
+        parsed_criteria = {"criteria": parsed_criteria, "total_criteria": len(parsed_criteria)}
+
     if not isinstance(parsed_criteria, dict) or "criteria" not in parsed_criteria:
-        # Check if parsed_criteria is a list or wrapped
-        if isinstance(parsed_criteria, list):
-            parsed_criteria = {"criteria": parsed_criteria, "total_criteria": len(parsed_criteria)}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="criteria_data must contain a 'criteria' array.",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="criteria_data must contain a 'criteria' array.",
+        )
 
     temp_dir = tempfile.mkdtemp(prefix="rfp_eval_")
     try:
@@ -301,6 +483,8 @@ async def evaluate_feedback_endpoint(
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        # Completely purge all ephemeral evaluation artifacts when session/request ends
+        purge_stale_session_artifacts()
 
 
 # =====================================================================
@@ -349,6 +533,8 @@ async def evaluate_proposal_unified(
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        # Completely purge all ephemeral evaluation artifacts when session/request ends
+        purge_stale_session_artifacts()
 
 
 # ---------------------------------------------------------------------

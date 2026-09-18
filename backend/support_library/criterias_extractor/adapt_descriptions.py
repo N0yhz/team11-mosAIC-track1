@@ -2,7 +2,7 @@
 Criteria Description Adaptation Module
 ----------------------------------------
 Uses LITE_MODEL (gemini-3.5-flash-lite) to regenerate requirement descriptions
-and rationales when the user adjusts the priority mark (1 to 5).
+and rationales when the user adjusts the priority mark (1 to 5) or adds/edits criteria.
 
 Ensures that the linguistic tone, contractual urgency, and evaluation expectations
 of the requirement text directly reflect the new priority mark.
@@ -70,17 +70,33 @@ def adapt_criteria_descriptions(
     criteria_list = criteria_data.get("criteria", []) if is_dict else criteria_data
 
     if not criteria_list:
+        if is_dict:
+            criteria_data["total_criteria"] = 0
         return criteria_data
+
+    # Ensure every criterion has a valid unique ID and score
+    for idx, c in enumerate(criteria_list):
+        if not c.get("id"):
+            c["id"] = f"REQ-CUSTOM-{idx+1:02d}"
+        if "score" not in c and "priority_score" in c:
+            c["score"] = c["priority_score"]
+        elif "priority_score" not in c and "score" in c:
+            c["priority_score"] = c["score"]
+        score = int(c.get("score") or 3)
+        c["score"] = score
+        c["priority_score"] = score
+        if not c.get("priority_level"):
+            c["priority_level"] = PRIORITY_LEVEL_TITLES.get(score, f"{score} - Priority")
 
     # Identify items to adapt
     items_to_adapt = []
     for idx, c in enumerate(criteria_list):
-        if not only_modified or c.get("is_user_modified", False):
-            score = int(c.get("score") or c.get("priority_score") or 3)
+        if not only_modified or c.get("is_user_modified", False) or c.get("is_custom_added", False):
+            score = int(c.get("score") or 3)
             items_to_adapt.append({
                 "index": idx,
                 "id": c.get("id", f"REQ-{idx+1:02d}"),
-                "title": c.get("title", ""),
+                "title": c.get("title", f"Requirement {idx+1}"),
                 "category": c.get("category", "General"),
                 "current_score": score,
                 "existing_description": c.get("description", ""),
@@ -89,7 +105,11 @@ def adapt_criteria_descriptions(
 
     if not items_to_adapt:
         print("[AI Lite] No criteria marked for description adaptation.")
-        return criteria_data
+        if is_dict:
+            criteria_data["criteria"] = criteria_list
+            criteria_data["total_criteria"] = len(criteria_list)
+            return criteria_data
+        return criteria_list
 
     effective_api_key = _get_api_key(api_key)
     target_model = (
@@ -103,7 +123,7 @@ def adapt_criteria_descriptions(
 
     prompt = f"""
 You are a Requirements Realignment Assistant.
-The evaluator has adjusted the priority marks (1 to 5) for the following customer RFP requirements.
+The evaluator has adjusted the priority marks (1 to 5) or added new criteria for the following customer RFP requirements.
 Rewrite each requirement's `description` and `rationale` so that the language, contractual urgency, and evaluation expectations precisely match the assigned priority mark:
 
 Priority Scale Rules:
@@ -185,8 +205,7 @@ Return ONLY a valid JSON array of objects with the exact schema:
             criteria_list[idx]["is_description_adapted"] = True
             criteria_list[idx]["adapted_to_score"] = target_score
         else:
-            # Rule-based fallback if API was unavailable
-            base_desc = item["existing_description"]
+            base_desc = item["existing_description"] or item["title"]
             if target_score == 5:
                 criteria_list[idx]["description"] = f"CRITICAL MANDATORY REQUIREMENT (Deal-Breaker): The solution MUST strictly provide: {base_desc}. Failure to comply will disqualify the proposal."
                 criteria_list[idx]["rationale"] = "Designated as a non-negotiable must-have (Mark 5). Any omission will cause immediate disqualification."
@@ -199,11 +218,15 @@ Return ONLY a valid JSON array of objects with the exact schema:
             elif target_score == 4:
                 criteria_list[idx]["description"] = f"High-priority operational requirement: {base_desc}. Crucial for operational readiness."
                 criteria_list[idx]["rationale"] = "High priority deliverable (Mark 4) strongly impacting proposal scoring."
+            else:
+                criteria_list[idx]["description"] = f"Standard deliverable: {base_desc}."
+                criteria_list[idx]["rationale"] = "Standard expected feature (Mark 3)."
             criteria_list[idx]["priority_level"] = PRIORITY_LEVEL_TITLES.get(target_score, f"{target_score} - Priority")
             criteria_list[idx]["is_description_adapted"] = True
             criteria_list[idx]["adapted_to_score"] = target_score
 
     if is_dict:
         criteria_data["criteria"] = criteria_list
+        criteria_data["total_criteria"] = len(criteria_list)
         return criteria_data
     return criteria_list

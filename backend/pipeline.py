@@ -186,6 +186,7 @@ def evaluate_response_stage(
             response_file=processed_response,
             api_key=api_key,
             model_name=effective_model,
+            save_to_disk=False,
         )
         print("[Stage 2 Complete] Feedback and corrections generated.")
 
@@ -215,6 +216,17 @@ def evaluate_response_stage(
         if temp_criteria_dir:
             import shutil
             shutil.rmtree(temp_criteria_dir, ignore_errors=True)
+        # Always delete intermediate feedback/correction files from folder after each run
+        for p in Path(".").glob("response_feedback_*.json"):
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
+        for p in Path(".").glob("response_correction_*.json"):
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 # =====================================================================

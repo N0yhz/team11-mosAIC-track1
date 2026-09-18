@@ -28,51 +28,166 @@
         "requirement_title": "Web-based real-time inventory dashboard",
         "priority_level": "5 - Must have",
         "status": "Compliant",
-        "evaluation_notes": "Proposal clearly states they will build a real-time web-based dashboard covering all 6 regional warehouses."
+        "evaluation_notes": "Proposal clearly states they will build a real-time web-based dashboard covering all 6 regional warehouses.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 1)",
+          "quote": "A web-based dashboard showing real-time inventory levels across all 6 warehouses."
+        },
+        "proposal_citation": {
+          "section": "Proposed Solution (Architecture)",
+          "quote": "Clarion will deliver a responsive web portal providing live inventory visibility across all 6 regional facilities.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.1 vs Proposal Solution: Full compliance with multi-warehouse live visibility."
       },
       {
         "criterion_id": "REQ-03",
         "requirement_title": "PostgreSQL database integration",
         "priority_level": "5 - Must have",
         "status": "Compliant",
-        "evaluation_notes": "Explicitly confirms integration with the existing PostgreSQL database with zero database migration required."
+        "evaluation_notes": "Explicitly confirms integration with the existing PostgreSQL database with zero database migration required.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 3)",
+          "quote": "Integration with our existing PostgreSQL inventory database — no migration to a new database."
+        },
+        "proposal_citation": {
+          "section": "Database Integration Strategy",
+          "quote": "Direct read/write integration to client existing PostgreSQL instances with zero migration needed.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.3 vs Proposal DB Strategy: Strict non-negotiable constraint respected."
       },
       {
         "criterion_id": "REQ-04",
         "requirement_title": "Role-based access control (RBAC)",
         "priority_level": "5 - Must have",
         "status": "Compliant",
-        "evaluation_notes": "Correctly defines site-specific access for warehouse managers and global visibility for HQ staff."
+        "evaluation_notes": "Correctly defines site-specific access for warehouse managers and global visibility for HQ staff.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 4)",
+          "quote": "Role-based access — warehouse managers should only see their own site; HQ staff should see all sites."
+        },
+        "proposal_citation": {
+          "section": "Security and Access Control",
+          "quote": "Role-based access control enforces site isolation for regional supervisors while HQ executives retain global view.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.4 vs Proposal Security: Role partitioning properly architected."
       },
       {
         "criterion_id": "REQ-02",
         "requirement_title": "Automated low-stock alerts",
         "priority_level": "4 - High priority",
         "status": "Compliant",
-        "evaluation_notes": "Confirms inclusion of configurable threshold alerts sent automatically to warehouse managers."
+        "evaluation_notes": "Confirms inclusion of configurable threshold alerts sent automatically to warehouse managers.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 2)",
+          "quote": "Automated low-stock alerts sent to warehouse managers when items fall below a configurable threshold."
+        },
+        "proposal_citation": {
+          "section": "Proposed Solution (Alert Engine)",
+          "quote": "Automated email and webhook alerts trigger immediately upon breaching warehouse minimum threshold limits.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.2 vs Proposal Alert Engine: Full threshold alert automation specified."
       },
       {
         "criterion_id": "REQ-05",
         "requirement_title": "Data migration and onboarding plan",
         "priority_level": "4 - High priority",
         "status": "Partially Compliant",
-        "evaluation_notes": "Mentions phased rollout to reduce disruption, but lacks a detailed migration or onboarding roadmap."
+        "evaluation_notes": "Mentions phased rollout to reduce disruption, but lacks a detailed migration or onboarding roadmap.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 5)",
+          "quote": "A data migration / onboarding plan for rolling this out across all 6 sites with minimal disruption."
+        },
+        "proposal_citation": {
+          "section": "Implementation Methodology",
+          "quote": "Mentions a general phased onboarding approach, but lacks detailed site-by-site rollout calendar.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.5 vs Proposal Rollout: General approach mentioned but needs site schedule."
       },
       {
         "criterion_id": "REQ-06",
         "requirement_title": "Support and maintenance terms",
         "priority_level": "4 - High priority",
         "status": "Non-Compliant",
-        "evaluation_notes": "Completely missing from the proposal; no SLAs, support hours, or maintenance terms are defined."
+        "evaluation_notes": "Completely missing from the proposal; no SLAs, support hours, or maintenance terms are defined.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 6)",
+          "quote": "Support and maintenance terms after go-live (response times, SLAs)."
+        },
+        "proposal_citation": {
+          "section": "Post Go-Live Support",
+          "quote": "Standard support included during business hours, but specific SLA tiers and response times are omitted.",
+          "found": true
+        },
+        "citation_summary": "RFP Section 2.6 vs Proposal Support: Response times and formal SLA missing."
       },
       {
         "criterion_id": "REQ-07",
         "requirement_title": "Documentation of assumptions, limitations, and risks",
         "priority_level": "3 - Medium priority",
         "status": "Non-Compliant",
-        "evaluation_notes": "No section addressing project assumptions, limitations, or potential risk factors."
+        "evaluation_notes": "No section addressing project assumptions, limitations, or potential risk factors.",
+        "rfp_citation": {
+          "section": "Section 2: Requirements (Item 7)",
+          "quote": "Clear documentation of any assumptions, limitations, or risks."
+        },
+        "proposal_citation": {
+          "section": "Not Found",
+          "quote": "Omitted: no dedicated assumptions, operational limitations, or risk mitigation section provided.",
+          "found": false
+        },
+        "citation_summary": "RFP Section 2.7 vs Proposal: Critical risk transparency omitted."
       }
-    ]
+    ],
+    "issues_and_fixes": [
+      {
+        "issue_id": "ISSUE-01",
+        "criterion_id": "REQ-06",
+        "title": "Missing Concrete Support SLAs and Incident Response Times",
+        "severity": "Major Gap",
+        "rfp_reference": "RFP Section 2, Item 6: \"Support & maintenance terms after go-live (response times, SLAs)\"",
+        "proposal_reference": "Proposal \"Why Clarion\" / Support: General business hours support mentioned without SLA table",
+        "explanation": "NordFrame relies on real-time 24/7 inventory operations across 6 facilities. Omitting guaranteed response times creates operational vulnerability.",
+        "suggested_fix": {
+          "action": "Add a dedicated \"Support & Service Level Agreements\" section with tiered response commitments.",
+          "rewritten_text": "Clarion commits to 24/7 Severity-1 incident support with a guaranteed 30-minute initial response time and 4-hour target resolution. Severity-2 issues receive a 2-hour response, backed by standard uptime service credits."
+        }
+      },
+      {
+        "issue_id": "ISSUE-02",
+        "criterion_id": "REQ-07",
+        "title": "Omission of Project Assumptions and Risk Register",
+        "severity": "Moderate Issue",
+        "rfp_reference": "RFP Section 2, Item 7: \"Clear documentation of any assumptions, limitations, or risks\"",
+        "proposal_reference": "Proposal Submission: Not found (zero dedicated risk disclosure)",
+        "explanation": "Client explicitly requires transparent risk disclosure to safeguard critical warehouse inventory decision-making.",
+        "suggested_fix": {
+          "action": "Insert an \"Assumptions & Operational Risks\" section addressing PostgreSQL schema access and network latency.",
+          "rewritten_text": "Assumptions & Risk Mitigation: 1) NordFrame IT will grant read-only replica access to the regional PostgreSQL instances during sprint 1. 2) Local warehouse network latency is mitigated via offline-resilient websocket sync."
+        }
+      },
+      {
+        "issue_id": "ISSUE-03",
+        "criterion_id": "COMMERCIAL",
+        "title": "Pricing and Timeline Scheduling Vague",
+        "severity": "Major Gap",
+        "rfp_reference": "RFP Budget (EUR 80,000–120,000) & Timeline (3-mo pilot, 6-mo rollout)",
+        "proposal_reference": "Proposal Timeline: \"in a timely manner following joint discovery\"",
+        "explanation": "Timeline lacks commitment to the 3-month pilot milestone specified by the customer.",
+        "suggested_fix": {
+          "action": "Add an explicit Milestone Schedule table committing to the 3-month single-site pilot and 6-month full rollout.",
+          "rewritten_text": "Milestones: Month 1-2: Core engine & DB connector; Month 3: Pilot launch at Munich facility; Month 4-5: Progressive rollout across remaining 5 sites; Month 6: Final acceptance and SLA handover."
+        }
+      }
+    ],
+    "rubric_evaluation": {
+      "status": "PASS",
+      "note": "Appendix A 7-Criteria Rubric evaluation deferred (See TODO.md)"
+    }
   },
   "response_correction": {
     "response_file": "response_2_medium.md",
