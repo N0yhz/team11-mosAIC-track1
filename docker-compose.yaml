@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rfp_evaluator_backend
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8001
+    volumes:
+      # Read-only mount for benchmark presets and sample data
+      - ./data:/app/data:ro
+    # Production ASGI server without --reload for optimal stability and throughput
+    command: uvicorn main:app --host 0.0.0.0 --port 8001
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rfp_evaluator_frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
